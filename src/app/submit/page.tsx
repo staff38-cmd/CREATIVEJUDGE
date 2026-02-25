@@ -1,0 +1,327 @@
+"use client";
+
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { ContentType } from "@/lib/types";
+
+type InputMode = "file" | "text";
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const ALLOWED_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "application/pdf",
+];
+
+const TARGET_CATEGORIES = [
+  "化粧品・スキンケア",
+  "健康食品・サプリメント",
+  "医薬部外品",
+  "医療機器",
+  "食品・飲料",
+  "ダイエット・美容",
+  "医療・クリニック",
+  "エステ・サロン",
+  "フィットネス・スポーツ",
+  "その他",
+];
+
+export default function SubmitPage() {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [inputMode, setInputMode] = useState<InputMode>("file");
+
+  const [form, setForm] = useState({
+    title: "",
+    targetCategory: "",
+    customRegulations: "",
+  });
+  const [textContent, setTextContent] = useState("");
+  const [textContentType, setTextContentType] = useState<"text" | "lp">("lp");
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  function handleFile(f: File) {
+    if (!ALLOWED_TYPES.includes(f.type)) {
+      setError("対応していないファイル形式です（JPEG/PNG/WebP/GIF/MP4/WebM/MOV/PDF）");
+      return;
+    }
+    if (f.size > MAX_FILE_SIZE) {
+      setError("ファイルサイズは50MB以内にしてください");
+      return;
+    }
+    setError("");
+    setFile(f);
+  }
+
+  function inferContentType(fileType: string): ContentType {
+    if (fileType.startsWith("image/")) return "image";
+    if (fileType.startsWith("video/")) return "video";
+    return "pdf";
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.title.trim()) {
+      setError("タイトルを入力してください");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      let id: string;
+
+      if (inputMode === "file") {
+        if (!file) {
+          setError("ファイルを選択してください");
+          setSubmitting(false);
+          return;
+        }
+        const fd = new FormData();
+        fd.append("title", form.title);
+        fd.append("contentType", inferContentType(file.type));
+        fd.append("targetCategory", form.targetCategory);
+        fd.append("customRegulations", form.customRegulations);
+        fd.append("file", file);
+
+        const res = await fetch("/api/works", { method: "POST", body: fd });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "登録に失敗しました");
+        }
+        ({ id } = await res.json());
+      } else {
+        if (!textContent.trim()) {
+          setError("チェックするテキストを入力してください");
+          setSubmitting(false);
+          return;
+        }
+        const res = await fetch("/api/works", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: form.title,
+            textContent,
+            contentType: textContentType,
+            targetCategory: form.targetCategory,
+            customRegulations: form.customRegulations,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "登録に失敗しました");
+        }
+        ({ id } = await res.json());
+      }
+
+      router.push(`/works/${id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "登録に失敗しました");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 py-12">
+      <h1 className="text-3xl font-black mb-2">コンテンツを登録</h1>
+      <p className="text-gray-400 mb-8">
+        登録後、薬機法・景品表示法などへの適合性をAIが自動チェックします
+      </p>
+
+      {/* Input Mode Toggle */}
+      <div className="flex gap-2 mb-8 p-1 rounded-xl bg-white/5 border border-white/10">
+        {(["file", "text"] as InputMode[]).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setInputMode(mode)}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              inputMode === mode
+                ? "bg-violet-500 text-white"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            {mode === "file" ? "📎 ファイルアップロード" : "📝 テキスト・LP貼り付け"}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Title */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            タイトル・管理名 <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="例: ○○サプリ LP 2025年3月版"
+            required
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
+          />
+        </div>
+
+        {/* Target Category */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            商品・サービスカテゴリ <span className="text-gray-500">（推奨）</span>
+          </label>
+          <select
+            value={form.targetCategory}
+            onChange={(e) => setForm({ ...form, targetCategory: e.target.value })}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
+          >
+            <option value="" className="bg-gray-900">未選択（一般規制でチェック）</option>
+            {TARGET_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat} className="bg-gray-900">
+                {cat}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            カテゴリを指定すると、そのカテゴリに特有の規制を重点的にチェックします
+          </p>
+        </div>
+
+        {/* File or Text Input */}
+        {inputMode === "file" ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              ファイル <span className="text-red-400">*</span>
+            </label>
+            <div
+              className={`rounded-2xl border-2 border-dashed transition-colors p-10 text-center cursor-pointer ${
+                dragOver
+                  ? "border-violet-400 bg-violet-500/10"
+                  : file
+                  ? "border-green-500/50 bg-green-500/5"
+                  : "border-white/20 hover:border-white/40"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files[0];
+                if (f) handleFile(f);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ALLOWED_TYPES.join(",")}
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleFile(f);
+                }}
+              />
+              {file ? (
+                <div>
+                  <div className="text-4xl mb-2">
+                    {file.type.startsWith("image/")
+                      ? "🖼️"
+                      : file.type.startsWith("video/")
+                      ? "🎬"
+                      : "📄"}
+                  </div>
+                  <p className="font-semibold text-green-400">{file.name}</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {(file.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                  <p className="text-xs text-gray-600 mt-2">クリックして変更</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="text-4xl mb-3">📂</div>
+                  <p className="font-semibold">ファイルをドロップ、またはクリックして選択</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）・PDF（最大50MB）
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <label className="block text-sm font-medium text-gray-300">
+                コンテンツ種別 <span className="text-red-400">*</span>
+              </label>
+              <div className="flex gap-2">
+                {(["lp", "text"] as const).map((ct) => (
+                  <button
+                    key={ct}
+                    type="button"
+                    onClick={() => setTextContentType(ct)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                      textContentType === ct
+                        ? "bg-violet-500 text-white"
+                        : "bg-white/5 text-gray-400 hover:bg-white/10"
+                    }`}
+                  >
+                    {ct === "lp" ? "LP・記事" : "テキスト広告・原稿"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <textarea
+              value={textContent}
+              onChange={(e) => setTextContent(e.target.value)}
+              placeholder={
+                textContentType === "lp"
+                  ? "LPのテキスト内容を貼り付けてください（見出し・本文・キャッチコピーなど）"
+                  : "広告テキスト・原稿・キャッチコピーなどを貼り付けてください"
+              }
+              rows={12}
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors resize-none font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-1">{textContent.length} 文字</p>
+          </div>
+        )}
+
+        {/* Custom Regulations */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            追加チェック項目・レギュレーション <span className="text-gray-500">（任意）</span>
+          </label>
+          <textarea
+            value={form.customRegulations}
+            onChange={(e) => setForm({ ...form, customRegulations: e.target.value })}
+            placeholder={`例:\n- 競合他社名の言及禁止\n- 「最安値」「業界No.1」表現禁止\n- Meta広告ポリシー準拠\n- 特定の訴求文言の使用禁止`}
+            rows={4}
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors resize-none text-sm"
+          />
+        </div>
+
+        {error && (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          {submitting ? "登録中..." : "登録してAIチェックへ"}
+        </button>
+      </form>
+    </div>
+  );
+}
