@@ -80,11 +80,17 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-6",
-    max_tokens: 4096,
-    messages: [{ role: "user", content: messageContent }],
-  });
+  let response;
+  try {
+    response = await client.messages.create({
+      model: "claude-opus-4-6",
+      max_tokens: 4096,
+      messages: [{ role: "user", content: messageContent }],
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Anthropic API エラー";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   const raw = response.content
     .filter((b) => b.type === "text")
