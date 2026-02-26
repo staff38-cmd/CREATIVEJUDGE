@@ -182,7 +182,19 @@ function ProjectCard({
           {project.description && (
             <p className="text-xs text-gray-500 ml-9 mb-2">{project.description}</p>
           )}
-          <p className="text-xs text-gray-600 ml-9">
+          <div className="flex items-center gap-2 ml-9 mt-2 flex-wrap">
+            {project.regulations && (
+              <span className="text-xs px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300">
+                レギュレーション設定済み
+              </span>
+            )}
+            {(project.ngCases?.length ?? 0) > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full border border-red-500/30 bg-red-500/10 text-red-300">
+                NG事例 {project.ngCases!.length}件
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-600 ml-9 mt-1">
             {new Date(project.createdAt).toLocaleDateString("ja-JP")} 作成
           </p>
         </div>
@@ -221,13 +233,19 @@ function ProjectCard({
           href={`/works?project=${project.id}`}
           className="px-4 py-2 rounded-lg text-xs font-medium bg-white/5 hover:bg-white/10 transition-colors"
         >
-          チェック履歴を見る →
+          チェック履歴 →
         </Link>
         <Link
           href={`/submit?project=${project.id}`}
           className="px-4 py-2 rounded-lg text-xs font-medium bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 transition-colors"
         >
-          ＋ この案件にチェック追加
+          ＋ チェック追加
+        </Link>
+        <Link
+          href={`/projects/${project.id}`}
+          className="px-4 py-2 rounded-lg text-xs font-medium border border-white/10 hover:border-white/30 hover:bg-white/5 transition-colors"
+        >
+          ⚙ レギュレーション設定
         </Link>
         <button
           onClick={() => onDelete(project.id)}

@@ -6,6 +6,17 @@ export interface Project {
   clientName?: string;
   description?: string;
   createdAt: string;
+  regulations?: string;    // 案件固有レギュレーション・禁止表現
+  ngCases?: NgCase[];      // 過去のNG事例ナレッジ
+}
+
+export interface NgCase {
+  id: string;
+  title: string;           // NG事例のタイトル
+  description: string;     // 詳細・理由
+  category?: RegulationCategory;
+  quote?: string;          // 問題のあった具体的な表現
+  addedAt: string;
 }
 
 export type RiskLevel = "violation" | "warning" | "caution" | "ok";

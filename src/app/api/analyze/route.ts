@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import fs from "fs";
 import path from "path";
-import { getWork, saveWork } from "@/lib/storage";
-import { ComplianceIssue, ComplianceResult, RegulationCategory, RiskLevel } from "@/lib/types";
+import { getWork, saveWork, getProject } from "@/lib/storage";
+import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLevel } from "@/lib/types";
 
 const client = new Anthropic();
 
@@ -19,11 +19,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "コンテンツが見つかりません" }, { status: 404 });
   }
 
+  // Fetch project knowledge if the work belongs to a project
+  const project = work.projectId ? getProject(work.projectId) : null;
+
   const isImage = work.fileType?.startsWith("image/");
   const isVideo = work.fileType?.startsWith("video/");
   const isPdf = work.fileType === "application/pdf";
 
   let messageContent: Anthropic.MessageParam["content"];
+
+  const promptOpts = {
+    title: work.title,
+    contentType: work.contentType,
+    targetCategory: work.targetCategory,
+    customRegulations: work.customRegulations,
+    projectRegulations: project?.regulations,
+    projectNgCases: project?.ngCases,
+  };
 
   if (isImage && work.filePath) {
     // Image: send as vision
@@ -40,49 +52,31 @@ export async function POST(req: NextRequest) {
         {
           type: "text",
           text: buildPrompt({
-            title: work.title,
-            contentType: work.contentType,
-            targetCategory: work.targetCategory,
-            customRegulations: work.customRegulations,
+            ...promptOpts,
             extra: "画像の文字・ビジュアルすべてを対象にチェックしてください。",
           }),
         },
       ];
     } else {
       messageContent = buildPrompt({
-        title: work.title,
-        contentType: work.contentType,
-        targetCategory: work.targetCategory,
-        customRegulations: work.customRegulations,
+        ...promptOpts,
         extra: "※ 画像ファイルの読み込みに失敗したため、タイトル・カテゴリ情報のみでチェックします。",
       });
     }
   } else if (isVideo) {
-    // Video: text-only with note
     messageContent = buildPrompt({
-      title: work.title,
-      contentType: work.contentType,
-      targetCategory: work.targetCategory,
-      customRegulations: work.customRegulations,
+      ...promptOpts,
       extra: `動画ファイル名: ${work.fileName ?? "不明"}\n※ 動画の内容はファイル名・タイトル・カテゴリ情報をもとにチェックします。映像内のテキストやナレーション原稿があれば別途テキストとして登録することをお勧めします。`,
     });
   } else if (isPdf || work.contentType === "pdf") {
     messageContent = buildPrompt({
-      title: work.title,
-      contentType: work.contentType,
-      targetCategory: work.targetCategory,
-      customRegulations: work.customRegulations,
+      ...promptOpts,
       extra: `PDFファイル名: ${work.fileName ?? "不明"}\n※ PDFのテキスト抽出は未対応です。タイトルとカテゴリ情報でチェックを実施します。テキスト内容を直接貼り付けて「テキスト」として登録することをお勧めします。`,
     });
   } else {
-    // Text / LP
-    const text = work.textContent ?? "";
     messageContent = buildPrompt({
-      title: work.title,
-      contentType: work.contentType,
-      targetCategory: work.targetCategory,
-      customRegulations: work.customRegulations,
-      textContent: text,
+      ...promptOpts,
+      textContent: work.textContent ?? "",
     });
   }
 
@@ -110,20 +104,46 @@ interface BuildPromptOptions {
   contentType: string;
   targetCategory?: string;
   customRegulations?: string;
+  projectRegulations?: string;
+  projectNgCases?: NgCase[];
   textContent?: string;
   extra?: string;
 }
 
 function buildPrompt(opts: BuildPromptOptions): string {
-  const { title, contentType, targetCategory, customRegulations, textContent, extra } = opts;
+  const {
+    title, contentType, targetCategory, customRegulations,
+    projectRegulations, projectNgCases, textContent, extra,
+  } = opts;
 
   const categoryNote = targetCategory
     ? `商品・サービスカテゴリ: ${targetCategory}`
     : "商品・サービスカテゴリ: 不明（一般的な規制に基づいてチェック）";
 
+  // Per-work custom regulations
   const customNote = customRegulations
-    ? `\n追加チェック項目（クライアント指定レギュレーション）:\n${customRegulations}`
+    ? `\n追加チェック項目（このコンテンツ専用）:\n${customRegulations}`
     : "";
+
+  // Project-level regulations (always applied for this project)
+  const projectRegsNote = projectRegulations
+    ? `\n【案件レギュレーション（この案件すべてに適用）】\n${projectRegulations}`
+    : "";
+
+  // Past NG cases as knowledge
+  let ngCasesNote = "";
+  if (projectNgCases && projectNgCases.length > 0) {
+    const casesList = projectNgCases
+      .map((c, i) => {
+        const parts = [`${i + 1}. 【${c.title}】`];
+        if (c.category) parts.push(`   カテゴリ: ${c.category}`);
+        if (c.quote) parts.push(`   問題表現例: 「${c.quote}」`);
+        parts.push(`   内容: ${c.description}`);
+        return parts.join("\n");
+      })
+      .join("\n\n");
+    ngCasesNote = `\n\n【この案件の過去NG事例（参考にして同様の問題を検出してください）】\n${casesList}`;
+  }
 
   const textSection = textContent
     ? `\n--- チェック対象テキスト ---\n${textContent}\n--- テキスト終了 ---`
@@ -137,7 +157,7 @@ function buildPrompt(opts: BuildPromptOptions): string {
 【チェック対象】
 タイトル: ${title}
 コンテンツ種別: ${contentType}
-${categoryNote}${customNote}${textSection}${extraNote}
+${categoryNote}${customNote}${projectRegsNote}${ngCasesNote}${textSection}${extraNote}
 
 【チェック対象の法規制・ガイドライン】
 1. **薬機法（医薬品医療機器等法）**
