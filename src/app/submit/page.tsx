@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { ContentType } from "@/lib/types";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ContentType, Project } from "@/lib/types";
 
 type InputMode = "file" | "text";
 
@@ -31,8 +31,9 @@ const TARGET_CATEGORIES = [
   "その他",
 ];
 
-export default function SubmitPage() {
+function SubmitForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [inputMode, setInputMode] = useState<InputMode>("file");
 
@@ -47,6 +48,43 @@ export default function SubmitPage() {
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Project state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(searchParams.get("project") ?? "");
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectClient, setNewProjectClient] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((data) => setProjects(data))
+      .catch(() => {});
+  }, []);
+
+  async function handleCreateProject() {
+    if (!newProjectName.trim()) return;
+    setCreatingProject(true);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newProjectName.trim(), clientName: newProjectClient.trim() }),
+      });
+      if (res.ok) {
+        const project: Project = await res.json();
+        setProjects((prev) => [project, ...prev]);
+        setSelectedProjectId(project.id);
+        setShowNewProject(false);
+        setNewProjectName("");
+        setNewProjectClient("");
+      }
+    } finally {
+      setCreatingProject(false);
+    }
+  }
 
   function handleFile(f: File) {
     if (!ALLOWED_TYPES.includes(f.type)) {
@@ -91,6 +129,7 @@ export default function SubmitPage() {
         fd.append("contentType", inferContentType(file.type));
         fd.append("targetCategory", form.targetCategory);
         fd.append("customRegulations", form.customRegulations);
+        fd.append("projectId", selectedProjectId);
         fd.append("file", file);
 
         const res = await fetch("/api/works", { method: "POST", body: fd });
@@ -114,6 +153,7 @@ export default function SubmitPage() {
             contentType: textContentType,
             targetCategory: form.targetCategory,
             customRegulations: form.customRegulations,
+            projectId: selectedProjectId || undefined,
           }),
         });
         if (!res.ok) {
@@ -156,6 +196,76 @@ export default function SubmitPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Project Selector */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            案件 <span className="text-gray-500">（任意）</span>
+          </label>
+          {!showNewProject ? (
+            <div className="flex gap-2">
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
+              >
+                <option value="" className="bg-gray-900">案件なし</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-gray-900">
+                    {p.name}{p.clientName ? ` (${p.clientName})` : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowNewProject(true)}
+                className="px-4 py-3 rounded-xl text-sm font-medium border border-white/20 hover:border-violet-500/50 hover:bg-violet-500/10 transition-colors whitespace-nowrap"
+              >
+                ＋ 新規案件
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl border border-violet-500/30 bg-violet-500/5 space-y-3">
+              <p className="text-sm font-medium text-violet-300">新規案件を作成</p>
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="案件名 *"
+                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none text-sm transition-colors"
+              />
+              <input
+                type="text"
+                value={newProjectClient}
+                onChange={(e) => setNewProjectClient(e.target.value)}
+                placeholder="クライアント名（任意）"
+                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none text-sm transition-colors"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreateProject}
+                  disabled={!newProjectName.trim() || creatingProject}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {creatingProject ? "作成中..." : "作成して選択"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowNewProject(false); setNewProjectName(""); setNewProjectClient(""); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-white/20 hover:bg-white/5 transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+          {selectedProjectId && !showNewProject && (
+            <p className="text-xs text-violet-400 mt-1">
+              ✓ {projects.find((p) => p.id === selectedProjectId)?.name} に登録されます
+            </p>
+          )}
+        </div>
+
         {/* Title */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -323,5 +433,13 @@ export default function SubmitPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+export default function SubmitPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-500">読み込み中...</div>}>
+      <SubmitForm />
+    </Suspense>
   );
 }

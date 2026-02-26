@@ -1,5 +1,13 @@
 export type ContentType = "image" | "video" | "text" | "lp" | "pdf";
 
+export interface Project {
+  id: string;
+  name: string;
+  clientName?: string;
+  description?: string;
+  createdAt: string;
+}
+
 export type RiskLevel = "violation" | "warning" | "caution" | "ok";
 
 export const RISK_LEVEL_LABELS: Record<RiskLevel, string> = {
@@ -57,6 +65,7 @@ export interface Work {
   complianceResult?: ComplianceResult;
   customRegulations?: string;   // 追加のレギュレーション指定
   targetCategory?: string;      // 商品カテゴリ（化粧品・サプリ・医薬品等）
+  projectId?: string;           // 所属案件ID
 }
 
 export interface WorkSummary {
@@ -72,4 +81,6 @@ export interface WorkSummary {
   warningCount: number;
   hasResult: boolean;
   targetCategory?: string;
+  projectId?: string;
+  projectName?: string;
 }

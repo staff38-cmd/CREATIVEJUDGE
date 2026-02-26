@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import fs from "fs";
-import { getAllWorks, saveWork, toSummary } from "@/lib/storage";
+import { getAllWorks, saveWork, toSummary, getAllProjects } from "@/lib/storage";
 import { Work, ContentType } from "@/lib/types";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
@@ -26,8 +26,9 @@ function ensureUploadDir() {
 
 export async function GET() {
   const works = getAllWorks();
+  const projects = getAllProjects();
   const summaries = works
-    .map(toSummary)
+    .map((w) => toSummary(w, projects))
     .sort(
       (a, b) =>
         new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
   // Text / LP submission (JSON)
   if (contentType.includes("application/json")) {
     const body = await req.json();
-    const { title, textContent, contentType: ct, targetCategory, customRegulations } = body;
+    const { title, textContent, contentType: ct, targetCategory, customRegulations, projectId } = body;
 
     if (!title || !textContent || !ct) {
       return NextResponse.json({ error: "必須フィールドが不足しています" }, { status: 400 });
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
       textContent,
       targetCategory: targetCategory || undefined,
       customRegulations: customRegulations || undefined,
+      projectId: projectId || undefined,
       submittedAt: new Date().toISOString(),
     };
 
@@ -68,6 +70,7 @@ export async function POST(req: NextRequest) {
   const ct = formData.get("contentType") as ContentType;
   const targetCategory = formData.get("targetCategory") as string | null;
   const customRegulations = formData.get("customRegulations") as string | null;
+  const projectId = formData.get("projectId") as string | null;
   const file = formData.get("file") as File | null;
 
   if (!title || !ct || !file) {
@@ -107,6 +110,7 @@ export async function POST(req: NextRequest) {
     filePath,
     targetCategory: targetCategory ?? undefined,
     customRegulations: customRegulations ?? undefined,
+    projectId: projectId ?? undefined,
     submittedAt: new Date().toISOString(),
   };
 

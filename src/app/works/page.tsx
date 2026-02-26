@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { WorkSummary, ContentType, CONTENT_TYPE_LABELS } from "@/lib/types";
+import { useSearchParams } from "next/navigation";
+import { WorkSummary, ContentType, CONTENT_TYPE_LABELS, Project } from "@/lib/types";
 
 const ALL = "all";
 
@@ -13,41 +14,99 @@ const STATUS_BADGE = {
   ok: { label: "OK", className: "bg-green-500/20 text-green-400 border border-green-500/30" },
 };
 
-export default function WorksPage() {
+function WorksContent() {
+  const searchParams = useSearchParams();
+  const projectParam = searchParams.get("project") ?? ALL;
+
   const [works, setWorks] = useState<WorkSummary[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>(ALL);
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
+  const [projectFilter, setProjectFilter] = useState<string>(projectParam);
 
   useEffect(() => {
-    fetch("/api/works")
-      .then((r) => r.json())
-      .then((data) => {
-        setWorks(data);
-        setLoading(false);
-      });
+    setProjectFilter(projectParam);
+  }, [projectParam]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/works").then((r) => r.json()),
+      fetch("/api/projects").then((r) => r.json()),
+    ]).then(([worksData, projectsData]) => {
+      setWorks(worksData);
+      setProjects(projectsData);
+      setLoading(false);
+    });
   }, []);
 
   const filtered = works
     .filter((w) => filter === ALL || w.contentType === filter)
-    .filter((w) => statusFilter === ALL || w.overallStatus === statusFilter);
+    .filter((w) => statusFilter === ALL || w.overallStatus === statusFilter)
+    .filter((w) => {
+      if (projectFilter === ALL) return true;
+      if (projectFilter === "none") return !w.projectId;
+      return w.projectId === projectFilter;
+    });
+
+  const currentProject = projects.find((p) => p.id === projectFilter);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-black mb-1">チェック履歴</h1>
-          <p className="text-gray-400">{works.length} 件</p>
+          <h1 className="text-3xl font-black mb-1">
+            {currentProject ? `${currentProject.name}` : "チェック履歴"}
+          </h1>
+          <p className="text-gray-400">
+            {currentProject && <span className="mr-2 text-violet-400">📁 {currentProject.clientName || "案件"}</span>}
+            {filtered.length} 件
+          </p>
         </div>
-        <Link
-          href="/submit"
-          className="px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 transition-all"
-        >
-          + 新規チェック
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/projects"
+            className="px-4 py-2 rounded-full text-sm font-medium border border-white/20 hover:border-white/40 transition-colors"
+          >
+            案件一覧
+          </Link>
+          <Link
+            href={currentProject ? `/submit?project=${currentProject.id}` : "/submit"}
+            className="px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 transition-all"
+          >
+            + 新規チェック
+          </Link>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Project Filter */}
+      {projects.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button
+            onClick={() => setProjectFilter(ALL)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${projectFilter === ALL ? "bg-violet-500 text-white" : "bg-white/5 text-gray-400 hover:bg-white/10"}`}
+          >
+            すべての案件
+          </button>
+          <button
+            onClick={() => setProjectFilter("none")}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${projectFilter === "none" ? "bg-violet-500 text-white" : "bg-white/5 text-gray-400 hover:bg-white/10"}`}
+          >
+            案件なし
+          </button>
+          {projects.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setProjectFilter(p.id)}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${projectFilter === p.id ? "bg-violet-500 text-white" : "bg-white/5 text-gray-400 hover:bg-white/10"}`}
+            >
+              📁 {p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Content Type Filters */}
       <div className="flex flex-wrap gap-2 mb-4">
         <button
           onClick={() => setFilter(ALL)}
@@ -65,6 +124,8 @@ export default function WorksPage() {
           </button>
         ))}
       </div>
+
+      {/* Status Filters */}
       <div className="flex gap-2 mb-8">
         {[ALL, "ng", "warning", "ok"].map((s) => (
           <button
@@ -99,6 +160,14 @@ export default function WorksPage() {
   );
 }
 
+export default function WorksPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-500">読み込み中...</div>}>
+      <WorksContent />
+    </Suspense>
+  );
+}
+
 function WorkRow({ work }: { work: WorkSummary }) {
   const isImage = work.fileType?.startsWith("image/");
   const statusBadge = work.overallStatus ? STATUS_BADGE[work.overallStatus] : null;
@@ -128,6 +197,9 @@ function WorkRow({ work }: { work: WorkSummary }) {
           <p className="font-bold truncate">{work.title}</p>
           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
             <span>{CONTENT_TYPE_LABELS[work.contentType]}</span>
+            {work.projectName && (
+              <span className="text-violet-400/70">📁 {work.projectName}</span>
+            )}
             {work.targetCategory && <span>{work.targetCategory}</span>}
             <span>{new Date(work.submittedAt).toLocaleDateString("ja-JP")}</span>
           </div>
