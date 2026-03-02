@@ -117,19 +117,47 @@ export default function ProjectSettingsPage({
     setUploadingFile(true);
     setUploadResult(null);
 
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch(`/api/projects/${id}/regulations-file`, {
-      method: "POST",
-      body: form,
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setRegulationsFileName(file.name);
-      setUploadResult({ extractedLength: data.extractedLength, preview: data.preview });
-    } else {
-      const err = await res.json();
-      setFileError(err.error ?? "アップロードに失敗しました");
+    try {
+      // ブラウザ側で xlsx を読み込み・解析（サーバー側の依存を回避）
+      const XLSX = await import("xlsx");
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+
+      const lines: string[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
+        if (workbook.SheetNames.length > 1) lines.push(`【シート: ${sheetName}】`);
+
+        for (const row of rows) {
+          const cells = (row as string[]).map((c) => String(c ?? "").trim());
+          if (cells.every((c) => c === "")) continue;
+          const colA = cells[0] ?? "";
+          const colB = cells[1] ?? "";
+          const colC = cells[2] ?? "";
+          if (colA && !colB && !colC) { lines.push(`\n[${colA}]`); continue; }
+          const main = colB || colA;
+          if (!main) continue;
+          lines.push(`・${main}${colC ? `（${colC}）` : ""}`);
+        }
+      }
+      const extractedText = lines.join("\n").trim();
+
+      const res = await fetch(`/api/projects/${id}/regulations-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, extractedText }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRegulationsFileName(file.name);
+        setUploadResult({ extractedLength: data.extractedLength, preview: data.preview });
+      } else {
+        const err = await res.json();
+        setFileError(err.error ?? "アップロードに失敗しました");
+      }
+    } catch {
+      setFileError("ファイルの解析に失敗しました");
     }
     setUploadingFile(false);
     e.target.value = "";
