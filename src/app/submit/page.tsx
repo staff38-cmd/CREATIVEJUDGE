@@ -45,7 +45,12 @@ function SubmitForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [inputMode, setInputMode] = useState<InputMode>("file");
+  const rawMode = searchParams.get("mode");
+  const initialMode: InputMode = rawMode === "text" || rawMode === "url" ? rawMode : "file";
+  const rawType = searchParams.get("type");
+  const initialType: "text" | "lp" = rawType === "text" ? "text" : "lp";
+
+  const [inputMode, setInputMode] = useState<InputMode>(initialMode);
 
   const [form, setForm] = useState({
     title: "",
@@ -53,7 +58,7 @@ function SubmitForm() {
     customRegulations: "",
   });
   const [textContent, setTextContent] = useState("");
-  const [textContentType, setTextContentType] = useState<"text" | "lp">("lp");
+  const [textContentType, setTextContentType] = useState<"text" | "lp">(initialType);
   const [sourceUrl, setSourceUrl] = useState("");
 
   // 複数ファイル対応
