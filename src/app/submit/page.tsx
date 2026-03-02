@@ -6,7 +6,7 @@ import { ContentType, Project } from "@/lib/types";
 
 type InputMode = "file" | "text";
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 const ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -92,7 +92,7 @@ function SubmitForm() {
       return;
     }
     if (f.size > MAX_FILE_SIZE) {
-      setError("ファイルサイズは50MB以内にしてください");
+      setError("ファイルサイズは500MB以内にしてください");
       return;
     }
     setError("");
@@ -360,7 +360,7 @@ function SubmitForm() {
                   <div className="text-4xl mb-3">📂</div>
                   <p className="font-semibold">ファイルをドロップ、またはクリックして選択</p>
                   <p className="text-sm text-gray-500 mt-2">
-                    画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）・PDF（最大50MB）
+                    画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）・PDF（最大500MB）
                   </p>
                 </div>
               )}
