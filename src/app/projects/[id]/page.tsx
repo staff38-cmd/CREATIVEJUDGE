@@ -46,6 +46,12 @@ export default function ProjectSettingsPage({
   const [savingRegs, setSavingRegs] = useState(false);
   const [regsSaved, setRegsSaved] = useState(false);
 
+  // Regulations file upload
+  const [regulationsFileName, setRegulationsFileName] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadResult, setUploadResult] = useState<{ extractedLength: number; preview: string } | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+
   // NG cases
   const [ngCases, setNgCases] = useState<NgCase[]>([]);
   const [showNgForm, setShowNgForm] = useState(false);
@@ -69,6 +75,7 @@ export default function ProjectSettingsPage({
         setDescription(data.description ?? "");
         setRegulations(data.regulations ?? "");
         setNgCases(data.ngCases ?? []);
+        setRegulationsFileName(data.regulationsFileName ?? null);
         setLoading(false);
       });
   }, [id]);
@@ -101,6 +108,39 @@ export default function ProjectSettingsPage({
       setTimeout(() => setRegsSaved(false), 2000);
     }
     setSavingRegs(false);
+  }
+
+  async function uploadRegulationsFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileError(null);
+    setUploadingFile(true);
+    setUploadResult(null);
+
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`/api/projects/${id}/regulations-file`, {
+      method: "POST",
+      body: form,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      setRegulationsFileName(file.name);
+      setUploadResult({ extractedLength: data.extractedLength, preview: data.preview });
+    } else {
+      const err = await res.json();
+      setFileError(err.error ?? "アップロードに失敗しました");
+    }
+    setUploadingFile(false);
+    e.target.value = "";
+  }
+
+  async function deleteRegulationsFile() {
+    const res = await fetch(`/api/projects/${id}/regulations-file`, { method: "DELETE" });
+    if (res.ok) {
+      setRegulationsFileName(null);
+      setUploadResult(null);
+    }
   }
 
   async function addNgCase() {
@@ -246,7 +286,76 @@ export default function ProjectSettingsPage({
           </div>
         </section>
 
-        {/* ── Section 3: NG Cases ── */}
+        {/* ── Section 3: Regulations File ── */}
+        <section className="p-6 rounded-2xl border border-white/10 bg-white/5">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h2 className="text-lg font-bold">レギュレーションファイル</h2>
+              <p className="text-sm text-gray-400 mt-1">
+                Excel / CSV のレギュレーション表をアップロード。AIチェック時に自動で参照されます。
+              </p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">
+              AI参照
+            </span>
+          </div>
+
+          {regulationsFileName ? (
+            <div className="mt-4 p-4 rounded-xl border border-green-500/30 bg-green-500/10">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-green-400 text-lg">✓</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-green-300 truncate">{regulationsFileName}</p>
+                    {uploadResult && (
+                      <p className="text-xs text-gray-400 mt-0.5">{uploadResult.extractedLength} 文字を抽出済み</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <label className="px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 hover:bg-white/5 cursor-pointer transition-colors">
+                    差し替え
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={uploadRegulationsFile} />
+                  </label>
+                  <button
+                    onClick={deleteRegulationsFile}
+                    className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 transition-colors"
+                  >
+                    削除
+                  </button>
+                </div>
+              </div>
+              {uploadResult?.preview && (
+                <div className="mt-3 p-3 rounded-lg bg-black/30 border border-white/10">
+                  <p className="text-xs text-gray-500 mb-1">抽出プレビュー（先頭300文字）</p>
+                  <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">{uploadResult.preview}</pre>
+                </div>
+              )}
+            </div>
+          ) : (
+            <label className={`mt-4 flex flex-col items-center justify-center w-full py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all ${uploadingFile ? "border-violet-500/50 bg-violet-500/5" : "border-white/20 hover:border-violet-500/40 hover:bg-violet-500/5"}`}>
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={uploadRegulationsFile} disabled={uploadingFile} />
+              {uploadingFile ? (
+                <>
+                  <div className="w-6 h-6 border-2 border-violet-400 border-t-transparent rounded-full animate-spin mb-2" />
+                  <p className="text-sm text-violet-300">解析中...</p>
+                </>
+              ) : (
+                <>
+                  <span className="text-2xl mb-2">📊</span>
+                  <p className="text-sm font-medium text-gray-300">Excel / CSV をアップロード</p>
+                  <p className="text-xs text-gray-500 mt-1">.xlsx .xls .csv に対応</p>
+                </>
+              )}
+            </label>
+          )}
+
+          {fileError && (
+            <p className="mt-2 text-sm text-red-400">{fileError}</p>
+          )}
+        </section>
+
+        {/* ── Section 4: NG Cases ── */}
         <section className="p-6 rounded-2xl border border-white/10 bg-white/5">
           <div className="flex items-start justify-between mb-2">
             <div>

@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
     targetCategory: work.targetCategory,
     customRegulations: work.customRegulations,
     projectRegulations: project?.regulations,
+    projectRegulationsFile: project?.regulationsFileContent,
+    projectRegulationsFileName: project?.regulationsFileName,
     projectNgCases: project?.ngCases,
   };
 
@@ -125,6 +127,8 @@ interface BuildPromptOptions {
   targetCategory?: string;
   customRegulations?: string;
   projectRegulations?: string;
+  projectRegulationsFile?: string;
+  projectRegulationsFileName?: string;
   projectNgCases?: NgCase[];
   textContent?: string;
   extra?: string;
@@ -133,7 +137,8 @@ interface BuildPromptOptions {
 function buildPrompt(opts: BuildPromptOptions): string {
   const {
     title, contentType, targetCategory, customRegulations,
-    projectRegulations, projectNgCases, textContent, extra,
+    projectRegulations, projectRegulationsFile, projectRegulationsFileName,
+    projectNgCases, textContent, extra,
   } = opts;
 
   const categoryNote = targetCategory
@@ -146,6 +151,10 @@ function buildPrompt(opts: BuildPromptOptions): string {
 
   const projectRegsNote = projectRegulations
     ? `\n【案件レギュレーション（この案件すべてに適用）】\n${projectRegulations}`
+    : "";
+
+  const projectRegsFileNote = projectRegulationsFile
+    ? `\n【案件レギュレーションファイル${projectRegulationsFileName ? `（${projectRegulationsFileName}）` : ""}】\n${projectRegulationsFile}`
     : "";
 
   let ngCasesNote = "";
@@ -174,7 +183,7 @@ function buildPrompt(opts: BuildPromptOptions): string {
 【チェック対象】
 タイトル: ${title}
 コンテンツ種別: ${contentType}
-${categoryNote}${customNote}${projectRegsNote}${ngCasesNote}${textSection}${extraNote}
+${categoryNote}${customNote}${projectRegsNote}${projectRegsFileNote}${ngCasesNote}${textSection}${extraNote}
 
 【チェック対象の法規制・ガイドライン】
 1. **薬機法（医薬品医療機器等法）**

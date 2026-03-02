@@ -6,8 +6,11 @@ export interface Project {
   clientName?: string;
   description?: string;
   createdAt: string;
-  regulations?: string;    // 案件固有レギュレーション・禁止表現
-  ngCases?: NgCase[];      // 過去のNG事例ナレッジ
+  regulations?: string;            // 案件固有レギュレーション・禁止表現（手入力）
+  ngCases?: NgCase[];              // 過去のNG事例ナレッジ
+  regulationsFilePath?: string;    // アップロードされたレギュレーションファイルのパス
+  regulationsFileName?: string;    // 元のファイル名
+  regulationsFileContent?: string; // ファイルから抽出したテキスト（AIプロンプト用キャッシュ）
 }
 
 export interface NgCase {
