@@ -95,7 +95,6 @@ export async function POST(req: NextRequest) {
 
   const isImage = work.fileType?.startsWith("image/");
   const isVideo = work.fileType?.startsWith("video/");
-  const isPdf = work.fileType === "application/pdf";
 
   const promptOpts = {
     title: work.title,
@@ -163,18 +162,15 @@ export async function POST(req: NextRequest) {
         }),
       });
     }
-  } else if (isPdf || work.contentType === "pdf") {
-    parts.push({
-      text: buildPrompt({
-        ...promptOpts,
-        extra: `PDFファイル名: ${work.fileName ?? "不明"}\n※ PDFのテキスト抽出は未対応です。タイトルとカテゴリ情報でチェックを実施します。`,
-      }),
-    });
   } else {
+    const extra = work.contentType === "url" && work.sourceUrl
+      ? `取得元URL: ${work.sourceUrl}`
+      : undefined;
     parts.push({
       text: buildPrompt({
         ...promptOpts,
         textContent: work.textContent ?? "",
+        extra,
       }),
     });
   }

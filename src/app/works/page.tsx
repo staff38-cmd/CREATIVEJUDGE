@@ -183,8 +183,8 @@ function WorkRow({ work }: { work: WorkSummary }) {
             <div className="absolute inset-0 flex items-center justify-center text-2xl">
               {work.contentType === "video"
                 ? "🎬"
-                : work.contentType === "pdf"
-                ? "📄"
+                : work.contentType === "url"
+                ? "🔗"
                 : work.contentType === "lp"
                 ? "📰"
                 : "📝"}

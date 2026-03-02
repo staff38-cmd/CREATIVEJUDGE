@@ -1,4 +1,4 @@
-export type ContentType = "image" | "video" | "text" | "lp" | "pdf";
+export type ContentType = "image" | "video" | "text" | "lp" | "url";
 
 export interface Project {
   id: string;
@@ -41,7 +41,7 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   video: "動画",
   text: "テキスト",
   lp: "LP・記事",
-  pdf: "PDF",
+  url: "URL取得",
 };
 
 export type RegulationCategory =
@@ -80,6 +80,8 @@ export interface Work {
   filePath?: string;
   // Text-based content
   textContent?: string;
+  // URL-based content
+  sourceUrl?: string;
   submittedAt: string;
   complianceResult?: ComplianceResult;
   customRegulations?: string;   // 追加のレギュレーション指定
@@ -93,6 +95,7 @@ export interface WorkSummary {
   contentType: ContentType;
   filePath?: string;
   fileType?: string;
+  sourceUrl?: string;
   submittedAt: string;
   overallStatus?: "ng" | "warning" | "ok";
   issueCount: number;

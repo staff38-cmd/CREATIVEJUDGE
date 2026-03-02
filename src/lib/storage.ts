@@ -102,6 +102,7 @@ export function toSummary(work: Work, projects?: Project[]): WorkSummary {
     contentType: work.contentType,
     fileType: work.fileType,
     filePath: work.filePath,
+    sourceUrl: work.sourceUrl,
     submittedAt: work.submittedAt,
     overallStatus: result?.overallStatus,
     issueCount: issues.length,

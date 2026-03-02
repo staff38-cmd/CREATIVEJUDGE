@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ContentType, Project } from "@/lib/types";
 
-type InputMode = "file" | "text";
+type InputMode = "file" | "text" | "url";
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 const ALLOWED_TYPES = [
@@ -15,7 +15,6 @@ const ALLOWED_TYPES = [
   "video/mp4",
   "video/webm",
   "video/quicktime",
-  "application/pdf",
 ];
 
 const TARGET_CATEGORIES = [
@@ -39,8 +38,7 @@ function fileIcon(fileType: string) {
 
 function inferContentType(fileType: string): ContentType {
   if (fileType.startsWith("image/")) return "image";
-  if (fileType.startsWith("video/")) return "video";
-  return "pdf";
+  return "video";
 }
 
 function SubmitForm() {
@@ -56,6 +54,7 @@ function SubmitForm() {
   });
   const [textContent, setTextContent] = useState("");
   const [textContentType, setTextContentType] = useState<"text" | "lp">("lp");
+  const [sourceUrl, setSourceUrl] = useState("");
 
   // 複数ファイル対応
   const [files, setFiles] = useState<File[]>([]);
@@ -116,7 +115,6 @@ function SubmitForm() {
         errors.push(`${f.name}: 500MB を超えています`);
         continue;
       }
-      // 重複チェック
       if (files.some((ex) => ex.name === f.name && ex.size === f.size)) continue;
       valid.push(f);
     }
@@ -153,7 +151,7 @@ function SubmitForm() {
         const isMultiple = files.length > 1;
         const workIds: string[] = [];
 
-        // ── Step 1: 全ファイルを登録 ──
+        // Step 1: 全ファイルを登録
         for (let i = 0; i < files.length; i++) {
           const f = files[i];
           const title = isMultiple ? `${baseTitle} (${i + 1}/${files.length})` : baseTitle;
@@ -176,7 +174,7 @@ function SubmitForm() {
           workIds.push(id);
         }
 
-        // ── Step 2: 全件AIチェック ──
+        // Step 2: 全件AIチェック
         for (let i = 0; i < workIds.length; i++) {
           setProgress({ done: files.length + i, total: files.length * 2 });
           await fetch("/api/analyze", {
@@ -188,15 +186,47 @@ function SubmitForm() {
 
         setProgress({ done: files.length * 2, total: files.length * 2 });
 
-        // 1件なら結果ページ、複数なら一覧へ
         if (workIds.length === 1) {
           router.push(`/works/${workIds[0]}`);
         } else {
           const qs = selectedProjectId ? `?project=${selectedProjectId}` : "";
           router.push(`/works${qs}`);
         }
+
+      } else if (inputMode === "url") {
+        // URL モード（1件ずつ）
+        if (!sourceUrl.trim()) {
+          setError("URLを入力してください");
+          setSubmitting(false);
+          return;
+        }
+        if (!/^https?:\/\/.+/.test(sourceUrl.trim())) {
+          setError("http:// または https:// から始まるURLを入力してください");
+          setSubmitting(false);
+          return;
+        }
+
+        const res = await fetch("/api/works", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: form.title,
+            sourceUrl: sourceUrl.trim(),
+            contentType: "url",
+            targetCategory: form.targetCategory,
+            customRegulations: form.customRegulations,
+            projectId: selectedProjectId || undefined,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "登録に失敗しました");
+        }
+        const { id } = await res.json();
+        router.push(`/works/${id}`);
+
       } else {
-        // テキストモード（単一）
+        // テキストモード
         if (!textContent.trim()) {
           setError("チェックするテキストを入力してください");
           setSubmitting(false);
@@ -231,6 +261,7 @@ function SubmitForm() {
   const submitLabel = () => {
     if (!submitting) {
       if (inputMode === "file" && files.length > 1) return `${files.length}件を登録してAIチェック`;
+      if (inputMode === "url") return "URLを取得してAIチェックへ";
       return "登録してAIチェックへ";
     }
     if (progress) {
@@ -251,18 +282,22 @@ function SubmitForm() {
 
       {/* Input Mode Toggle */}
       <div className="flex gap-2 mb-8 p-1 rounded-xl bg-white/5 border border-white/10">
-        {(["file", "text"] as InputMode[]).map((mode) => (
+        {([
+          { key: "file", label: "📎 ファイル" },
+          { key: "text", label: "📝 テキスト貼り付け" },
+          { key: "url",  label: "🔗 URL取得" },
+        ] as { key: InputMode; label: string }[]).map(({ key, label }) => (
           <button
-            key={mode}
+            key={key}
             type="button"
-            onClick={() => setInputMode(mode)}
+            onClick={() => setInputMode(key)}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-              inputMode === mode
+              inputMode === key
                 ? "bg-violet-500 text-white"
                 : "text-gray-400 hover:text-white"
             }`}
           >
-            {mode === "file" ? "📎 ファイルアップロード" : "📝 テキスト・LP貼り付け"}
+            {label}
           </button>
         ))}
       </div>
@@ -353,7 +388,7 @@ function SubmitForm() {
           />
           {inputMode === "file" && files.length > 1 && (
             <p className="text-xs text-gray-500 mt-1">
-              複数ファイル時は自動で「タイトル (1/N)」「タイトル (2/N)」と連番が付きます
+              複数ファイル時は「タイトル (1/N)」のように自動連番が付きます
             </p>
           )}
         </div>
@@ -380,15 +415,14 @@ function SubmitForm() {
           </p>
         </div>
 
-        {/* File or Text Input */}
+        {/* ── Input area ── */}
         {inputMode === "file" ? (
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               ファイル <span className="text-red-400">*</span>
-              <span className="ml-2 text-xs text-gray-500 font-normal">複数選択・ドロップ可（画像・PDF）</span>
+              <span className="ml-2 text-xs text-gray-500 font-normal">複数選択・ドロップ可（画像・動画）</span>
             </label>
 
-            {/* Drop zone */}
             <div
               className={`rounded-2xl border-2 border-dashed transition-colors p-8 text-center cursor-pointer ${
                 dragOver
@@ -421,14 +455,15 @@ function SubmitForm() {
               />
               <div className="text-3xl mb-2">📂</div>
               <p className="font-semibold text-sm">
-                {files.length > 0 ? "さらに追加する場合はここをクリック／ドロップ" : "ファイルをドロップ、またはクリックして選択"}
+                {files.length > 0
+                  ? "さらに追加する場合はここをクリック／ドロップ"
+                  : "ファイルをドロップ、またはクリックして選択"}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）・PDF（最大500MB）
+                画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）（最大500MB）
               </p>
             </div>
 
-            {/* ファイルリスト */}
             {files.length > 0 && (
               <div className="mt-3 space-y-2">
                 <p className="text-xs text-gray-400">{files.length} 件選択中</p>
@@ -454,6 +489,25 @@ function SubmitForm() {
               </div>
             )}
           </div>
+
+        ) : inputMode === "url" ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              チェックするページのURL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="url"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://example.com/lp/product"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              登録時にページのHTMLを取得してテキストを抽出します。<br />
+              JavaScriptで描画されるSPAページは取得できない場合があります。
+            </p>
+          </div>
+
         ) : (
           <div>
             <div className="flex items-center gap-3 mb-3">
@@ -530,7 +584,7 @@ function SubmitForm() {
           disabled={submitting}
           className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
-          {submitting ? submitLabel() : submitLabel()}
+          {submitLabel()}
         </button>
       </form>
     </div>
