@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI, Part } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
 import { getWork, saveWork, getProject } from "@/lib/storage";
 import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLevel } from "@/lib/types";
 
-const client = new Anthropic();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   const { workId } = await req.json();
@@ -26,8 +26,6 @@ export async function POST(req: NextRequest) {
   const isVideo = work.fileType?.startsWith("video/");
   const isPdf = work.fileType === "application/pdf";
 
-  let messageContent: Anthropic.MessageParam["content"];
-
   const promptOpts = {
     title: work.title,
     contentType: work.contentType,
@@ -37,67 +35,63 @@ export async function POST(req: NextRequest) {
     projectNgCases: project?.ngCases,
   };
 
+  const parts: Part[] = [];
+
   if (isImage && work.filePath) {
-    // Image: send as vision
     const fullPath = path.join(process.cwd(), "public", work.filePath);
     if (fs.existsSync(fullPath)) {
       const imageBuffer = fs.readFileSync(fullPath);
       const base64 = imageBuffer.toString("base64");
-      const mediaType = work.fileType as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-      messageContent = [
-        {
-          type: "image",
-          source: { type: "base64", media_type: mediaType, data: base64 },
-        },
-        {
-          type: "text",
-          text: buildPrompt({
-            ...promptOpts,
-            extra: "画像の文字・ビジュアルすべてを対象にチェックしてください。",
-          }),
-        },
-      ];
+      const mimeType = (work.fileType ?? "image/jpeg") as "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+      parts.push({ inlineData: { mimeType, data: base64 } });
+      parts.push({
+        text: buildPrompt({
+          ...promptOpts,
+          extra: "画像の文字・ビジュアルすべてを対象にチェックしてください。",
+        }),
+      });
     } else {
-      messageContent = buildPrompt({
-        ...promptOpts,
-        extra: "※ 画像ファイルの読み込みに失敗したため、タイトル・カテゴリ情報のみでチェックします。",
+      parts.push({
+        text: buildPrompt({
+          ...promptOpts,
+          extra: "※ 画像ファイルの読み込みに失敗したため、タイトル・カテゴリ情報のみでチェックします。",
+        }),
       });
     }
   } else if (isVideo) {
-    messageContent = buildPrompt({
-      ...promptOpts,
-      extra: `動画ファイル名: ${work.fileName ?? "不明"}\n※ 動画の内容はファイル名・タイトル・カテゴリ情報をもとにチェックします。映像内のテキストやナレーション原稿があれば別途テキストとして登録することをお勧めします。`,
+    parts.push({
+      text: buildPrompt({
+        ...promptOpts,
+        extra: `動画ファイル名: ${work.fileName ?? "不明"}\n※ 動画の内容はファイル名・タイトル・カテゴリ情報をもとにチェックします。`,
+      }),
     });
   } else if (isPdf || work.contentType === "pdf") {
-    messageContent = buildPrompt({
-      ...promptOpts,
-      extra: `PDFファイル名: ${work.fileName ?? "不明"}\n※ PDFのテキスト抽出は未対応です。タイトルとカテゴリ情報でチェックを実施します。テキスト内容を直接貼り付けて「テキスト」として登録することをお勧めします。`,
+    parts.push({
+      text: buildPrompt({
+        ...promptOpts,
+        extra: `PDFファイル名: ${work.fileName ?? "不明"}\n※ PDFのテキスト抽出は未対応です。タイトルとカテゴリ情報でチェックを実施します。`,
+      }),
     });
   } else {
-    messageContent = buildPrompt({
-      ...promptOpts,
-      textContent: work.textContent ?? "",
+    parts.push({
+      text: buildPrompt({
+        ...promptOpts,
+        textContent: work.textContent ?? "",
+      }),
     });
   }
 
-  let response;
+  let responseText: string;
   try {
-    response = await client.messages.create({
-      model: "claude-opus-4-6",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: messageContent }],
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const result = await model.generateContent(parts);
+    responseText = result.response.text();
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Anthropic API エラー";
+    const msg = err instanceof Error ? err.message : "Gemini API エラー";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 
-  const raw = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => (b as { type: "text"; text: string }).text)
-    .join("");
-
-  const complianceResult = parseResponse(raw);
+  const complianceResult = parseResponse(responseText);
 
   work.complianceResult = complianceResult;
   saveWork(work);
@@ -126,17 +120,14 @@ function buildPrompt(opts: BuildPromptOptions): string {
     ? `商品・サービスカテゴリ: ${targetCategory}`
     : "商品・サービスカテゴリ: 不明（一般的な規制に基づいてチェック）";
 
-  // Per-work custom regulations
   const customNote = customRegulations
     ? `\n追加チェック項目（このコンテンツ専用）:\n${customRegulations}`
     : "";
 
-  // Project-level regulations (always applied for this project)
   const projectRegsNote = projectRegulations
     ? `\n【案件レギュレーション（この案件すべてに適用）】\n${projectRegulations}`
     : "";
 
-  // Past NG cases as knowledge
   let ngCasesNote = "";
   if (projectNgCases && projectNgCases.length > 0) {
     const casesList = projectNgCases
