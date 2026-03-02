@@ -31,6 +31,18 @@ const TARGET_CATEGORIES = [
   "その他",
 ];
 
+function fileIcon(fileType: string) {
+  if (fileType.startsWith("image/")) return "🖼️";
+  if (fileType.startsWith("video/")) return "🎬";
+  return "📄";
+}
+
+function inferContentType(fileType: string): ContentType {
+  if (fileType.startsWith("image/")) return "image";
+  if (fileType.startsWith("video/")) return "video";
+  return "pdf";
+}
+
 function SubmitForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -44,9 +56,13 @@ function SubmitForm() {
   });
   const [textContent, setTextContent] = useState("");
   const [textContentType, setTextContentType] = useState<"text" | "lp">("lp");
-  const [file, setFile] = useState<File | null>(null);
+
+  // 複数ファイル対応
+  const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState("");
 
   // Project state
@@ -86,23 +102,33 @@ function SubmitForm() {
     }
   }
 
-  function handleFile(f: File) {
-    if (!ALLOWED_TYPES.includes(f.type)) {
-      setError("対応していないファイル形式です（JPEG/PNG/WebP/GIF/MP4/WebM/MOV/PDF）");
-      return;
+  function addFiles(incoming: FileList | File[]) {
+    const arr = Array.from(incoming);
+    const errors: string[] = [];
+    const valid: File[] = [];
+
+    for (const f of arr) {
+      if (!ALLOWED_TYPES.includes(f.type)) {
+        errors.push(`${f.name}: 対応していない形式です`);
+        continue;
+      }
+      if (f.size > MAX_FILE_SIZE) {
+        errors.push(`${f.name}: 500MB を超えています`);
+        continue;
+      }
+      // 重複チェック
+      if (files.some((ex) => ex.name === f.name && ex.size === f.size)) continue;
+      valid.push(f);
     }
-    if (f.size > MAX_FILE_SIZE) {
-      setError("ファイルサイズは500MB以内にしてください");
-      return;
-    }
-    setError("");
-    setFile(f);
+
+    if (errors.length > 0) setError(errors.join("\n"));
+    else setError("");
+
+    setFiles((prev) => [...prev, ...valid]);
   }
 
-  function inferContentType(fileType: string): ContentType {
-    if (fileType.startsWith("image/")) return "image";
-    if (fileType.startsWith("video/")) return "video";
-    return "pdf";
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -116,29 +142,61 @@ function SubmitForm() {
     setError("");
 
     try {
-      let id: string;
-
       if (inputMode === "file") {
-        if (!file) {
+        if (files.length === 0) {
           setError("ファイルを選択してください");
           setSubmitting(false);
           return;
         }
-        const fd = new FormData();
-        fd.append("title", form.title);
-        fd.append("contentType", inferContentType(file.type));
-        fd.append("targetCategory", form.targetCategory);
-        fd.append("customRegulations", form.customRegulations);
-        fd.append("projectId", selectedProjectId);
-        fd.append("file", file);
 
-        const res = await fetch("/api/works", { method: "POST", body: fd });
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "登録に失敗しました");
+        const baseTitle = form.title.trim();
+        const isMultiple = files.length > 1;
+        const workIds: string[] = [];
+
+        // ── Step 1: 全ファイルを登録 ──
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          const title = isMultiple ? `${baseTitle} (${i + 1}/${files.length})` : baseTitle;
+          setProgress({ done: i, total: files.length * 2 });
+
+          const fd = new FormData();
+          fd.append("title", title);
+          fd.append("contentType", inferContentType(f.type));
+          fd.append("targetCategory", form.targetCategory);
+          fd.append("customRegulations", form.customRegulations);
+          fd.append("projectId", selectedProjectId);
+          fd.append("file", f);
+
+          const res = await fetch("/api/works", { method: "POST", body: fd });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || `${f.name} の登録に失敗しました`);
+          }
+          const { id } = await res.json();
+          workIds.push(id);
         }
-        ({ id } = await res.json());
+
+        // ── Step 2: 全件AIチェック ──
+        for (let i = 0; i < workIds.length; i++) {
+          setProgress({ done: files.length + i, total: files.length * 2 });
+          await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ workId: workIds[i] }),
+          });
+        }
+
+        setProgress({ done: files.length * 2, total: files.length * 2 });
+
+        // 1件なら結果ページ、複数なら一覧へ
+        if (workIds.length === 1) {
+          router.push(`/works/${workIds[0]}`);
+        } else {
+          const qs = selectedProjectId ? `?project=${selectedProjectId}` : "";
+          router.push(`/works${qs}`);
+        }
       } else {
+        // テキストモード（単一）
         if (!textContent.trim()) {
           setError("チェックするテキストを入力してください");
           setSubmitting(false);
@@ -160,15 +218,29 @@ function SubmitForm() {
           const data = await res.json();
           throw new Error(data.error || "登録に失敗しました");
         }
-        ({ id } = await res.json());
+        const { id } = await res.json();
+        router.push(`/works/${id}`);
       }
-
-      router.push(`/works/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
       setSubmitting(false);
+      setProgress(null);
     }
   }
+
+  const submitLabel = () => {
+    if (!submitting) {
+      if (inputMode === "file" && files.length > 1) return `${files.length}件を登録してAIチェック`;
+      return "登録してAIチェックへ";
+    }
+    if (progress) {
+      const { done, total } = progress;
+      const half = total / 2;
+      if (done < half) return `登録中... (${done + 1}/${half}件)`;
+      return `AIチェック中... (${done - half + 1}/${half}件)`;
+    }
+    return "処理中...";
+  };
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
@@ -279,6 +351,11 @@ function SubmitForm() {
             required
             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
           />
+          {inputMode === "file" && files.length > 1 && (
+            <p className="text-xs text-gray-500 mt-1">
+              複数ファイル時は自動で「タイトル (1/N)」「タイトル (2/N)」と連番が付きます
+            </p>
+          )}
         </div>
 
         {/* Target Category */}
@@ -308,25 +385,24 @@ function SubmitForm() {
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               ファイル <span className="text-red-400">*</span>
+              <span className="ml-2 text-xs text-gray-500 font-normal">複数選択・ドロップ可（画像・PDF）</span>
             </label>
+
+            {/* Drop zone */}
             <div
-              className={`rounded-2xl border-2 border-dashed transition-colors p-10 text-center cursor-pointer ${
+              className={`rounded-2xl border-2 border-dashed transition-colors p-8 text-center cursor-pointer ${
                 dragOver
                   ? "border-violet-400 bg-violet-500/10"
-                  : file
-                  ? "border-green-500/50 bg-green-500/5"
+                  : files.length > 0
+                  ? "border-violet-500/40 bg-violet-500/5"
                   : "border-white/20 hover:border-white/40"
               }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => {
                 e.preventDefault();
                 setDragOver(false);
-                const f = e.dataTransfer.files[0];
-                if (f) handleFile(f);
+                if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
               }}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -334,37 +410,49 @@ function SubmitForm() {
                 ref={fileInputRef}
                 type="file"
                 accept={ALLOWED_TYPES.join(",")}
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFile(f);
+                  if (e.target.files && e.target.files.length > 0) {
+                    addFiles(e.target.files);
+                    e.target.value = "";
+                  }
                 }}
               />
-              {file ? (
-                <div>
-                  <div className="text-4xl mb-2">
-                    {file.type.startsWith("image/")
-                      ? "🖼️"
-                      : file.type.startsWith("video/")
-                      ? "🎬"
-                      : "📄"}
-                  </div>
-                  <p className="font-semibold text-green-400">{file.name}</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                  <p className="text-xs text-gray-600 mt-2">クリックして変更</p>
-                </div>
-              ) : (
-                <div>
-                  <div className="text-4xl mb-3">📂</div>
-                  <p className="font-semibold">ファイルをドロップ、またはクリックして選択</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）・PDF（最大500MB）
-                  </p>
-                </div>
-              )}
+              <div className="text-3xl mb-2">📂</div>
+              <p className="font-semibold text-sm">
+                {files.length > 0 ? "さらに追加する場合はここをクリック／ドロップ" : "ファイルをドロップ、またはクリックして選択"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）・PDF（最大500MB）
+              </p>
             </div>
+
+            {/* ファイルリスト */}
+            {files.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-gray-400">{files.length} 件選択中</p>
+                {files.map((f, i) => (
+                  <div
+                    key={`${f.name}-${f.size}-${i}`}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10"
+                  >
+                    <span className="text-xl flex-shrink-0">{fileIcon(f.type)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{f.name}</p>
+                      <p className="text-xs text-gray-500">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                      className="text-gray-600 hover:text-red-400 transition-colors text-sm px-2 py-1 rounded hover:bg-red-500/10 flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div>
@@ -419,8 +507,21 @@ function SubmitForm() {
         </div>
 
         {error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-line">
             {error}
+          </div>
+        )}
+
+        {/* Progress bar */}
+        {submitting && progress && (
+          <div className="space-y-2">
+            <div className="w-full bg-white/10 rounded-full h-2">
+              <div
+                className="bg-gradient-to-r from-violet-500 to-pink-500 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${(progress.done / progress.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-xs text-center text-gray-400">{submitLabel()}</p>
           </div>
         )}
 
@@ -429,7 +530,7 @@ function SubmitForm() {
           disabled={submitting}
           className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
-          {submitting ? "登録中..." : "登録してAIチェックへ"}
+          {submitting ? submitLabel() : submitLabel()}
         </button>
       </form>
     </div>
