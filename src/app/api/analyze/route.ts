@@ -7,7 +7,7 @@ import { getWork, saveWork, getProject } from "@/lib/storage";
 import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLevel } from "@/lib/types";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 const proxyAgent = process.env.HTTP_PROXY ? new HttpsProxyAgent(process.env.HTTP_PROXY) : undefined;
 
 export async function POST(req: NextRequest) {
