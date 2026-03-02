@@ -41,12 +41,21 @@ export default function ProjectSettingsPage({
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoSaved, setInfoSaved] = useState(false);
 
-  // Regulations editing
+  // ── 企業レギュレーション ──
+  const [companyRegulations, setCompanyRegulations] = useState("");
+  const [savingCompanyRegs, setSavingCompanyRegs] = useState(false);
+  const [companyRegsSaved, setCompanyRegsSaved] = useState(false);
+
+  const [companyFileName, setCompanyFileName] = useState<string | null>(null);
+  const [uploadingCompanyFile, setUploadingCompanyFile] = useState(false);
+  const [companyUploadResult, setCompanyUploadResult] = useState<{ extractedLength: number; preview: string } | null>(null);
+  const [companyFileError, setCompanyFileError] = useState<string | null>(null);
+
+  // ── 案件レギュレーション ──
   const [regulations, setRegulations] = useState("");
   const [savingRegs, setSavingRegs] = useState(false);
   const [regsSaved, setRegsSaved] = useState(false);
 
-  // Regulations file upload
   const [regulationsFileName, setRegulationsFileName] = useState<string | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadResult, setUploadResult] = useState<{ extractedLength: number; preview: string } | null>(null);
@@ -73,6 +82,8 @@ export default function ProjectSettingsPage({
         setName(data.name);
         setClientName(data.clientName ?? "");
         setDescription(data.description ?? "");
+        setCompanyRegulations(data.companyRegulations ?? "");
+        setCompanyFileName(data.companyRegulationsFileName ?? null);
         setRegulations(data.regulations ?? "");
         setNgCases(data.ngCases ?? []);
         setRegulationsFileName(data.regulationsFileName ?? null);
@@ -96,6 +107,20 @@ export default function ProjectSettingsPage({
     setSavingInfo(false);
   }
 
+  async function saveCompanyRegulations() {
+    setSavingCompanyRegs(true);
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyRegulations }),
+    });
+    if (res.ok) {
+      setCompanyRegsSaved(true);
+      setTimeout(() => setCompanyRegsSaved(false), 2000);
+    }
+    setSavingCompanyRegs(false);
+  }
+
   async function saveRegulations() {
     setSavingRegs(true);
     const res = await fetch(`/api/projects/${id}`, {
@@ -110,15 +135,20 @@ export default function ProjectSettingsPage({
     setSavingRegs(false);
   }
 
-  async function uploadRegulationsFile(e: React.ChangeEvent<HTMLInputElement>) {
+  /** Excel/CSV を解析して指定タイプのエンドポイントに送信 */
+  async function uploadRegulationsFile(
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: "company" | "project"
+  ) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setFileError(null);
-    setUploadingFile(true);
-    setUploadResult(null);
+
+    const isCompany = type === "company";
+    isCompany ? setCompanyFileError(null) : setFileError(null);
+    isCompany ? setUploadingCompanyFile(true) : setUploadingFile(true);
+    isCompany ? setCompanyUploadResult(null) : setUploadResult(null);
 
     try {
-      // ブラウザ側で xlsx を読み込み・解析（サーバー側の依存を回避）
       const XLSX = await import("xlsx");
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: "array" });
@@ -143,31 +173,43 @@ export default function ProjectSettingsPage({
       }
       const extractedText = lines.join("\n").trim();
 
-      const res = await fetch(`/api/projects/${id}/regulations-file`, {
+      const res = await fetch(`/api/projects/${id}/regulations-file?type=${type}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileName: file.name, extractedText }),
       });
       if (res.ok) {
         const data = await res.json();
-        setRegulationsFileName(file.name);
-        setUploadResult({ extractedLength: data.extractedLength, preview: data.preview });
+        if (isCompany) {
+          setCompanyFileName(file.name);
+          setCompanyUploadResult({ extractedLength: data.extractedLength, preview: data.preview });
+        } else {
+          setRegulationsFileName(file.name);
+          setUploadResult({ extractedLength: data.extractedLength, preview: data.preview });
+        }
       } else {
         const err = await res.json();
-        setFileError(err.error ?? "アップロードに失敗しました");
+        const msg = err.error ?? "アップロードに失敗しました";
+        isCompany ? setCompanyFileError(msg) : setFileError(msg);
       }
     } catch {
-      setFileError("ファイルの解析に失敗しました");
+      const msg = "ファイルの解析に失敗しました";
+      isCompany ? setCompanyFileError(msg) : setFileError(msg);
     }
-    setUploadingFile(false);
+    isCompany ? setUploadingCompanyFile(false) : setUploadingFile(false);
     e.target.value = "";
   }
 
-  async function deleteRegulationsFile() {
-    const res = await fetch(`/api/projects/${id}/regulations-file`, { method: "DELETE" });
+  async function deleteRegulationsFile(type: "company" | "project") {
+    const res = await fetch(`/api/projects/${id}/regulations-file?type=${type}`, { method: "DELETE" });
     if (res.ok) {
-      setRegulationsFileName(null);
-      setUploadResult(null);
+      if (type === "company") {
+        setCompanyFileName(null);
+        setCompanyUploadResult(null);
+      } else {
+        setRegulationsFileName(null);
+        setUploadResult(null);
+      }
     }
   }
 
@@ -227,7 +269,7 @@ export default function ProjectSettingsPage({
           ← 案件一覧
         </Link>
       </div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-black">{project?.name}</h1>
           {project?.clientName && <p className="text-gray-400 mt-1">{project.clientName}</p>}
@@ -238,6 +280,18 @@ export default function ProjectSettingsPage({
         >
           チェック履歴 →
         </Link>
+      </div>
+
+      {/* チェックフロー説明 */}
+      <div className="mb-8 p-4 rounded-xl bg-white/5 border border-white/10">
+        <p className="text-xs text-gray-400 font-medium mb-2">AIジャッジフロー</p>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">① 薬機法・広告法令</span>
+          <span className="text-gray-600">→</span>
+          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">② 企業レギュレーション</span>
+          <span className="text-gray-600">→</span>
+          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-violet-500/20 text-violet-300 border border-violet-500/30">③ 案件レギュレーション</span>
+        </div>
       </div>
 
       <div className="space-y-8">
@@ -282,13 +336,79 @@ export default function ProjectSettingsPage({
           </button>
         </section>
 
-        {/* ── Section 2: Regulations Knowledge ── */}
-        <section className="p-6 rounded-2xl border border-white/10 bg-white/5">
+        {/* ── Section 2: 企業レギュレーション（手入力） ── */}
+        <section className="p-6 rounded-2xl border border-blue-500/20 bg-blue-500/5">
           <div className="flex items-start justify-between mb-2">
             <div>
-              <h2 className="text-lg font-bold">案件レギュレーション</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                この案件専用の禁止表現・注意事項を記入します。AIチェック時に毎回自動で参照されます。
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">② 企業</span>
+                <h2 className="text-lg font-bold">企業レギュレーション</h2>
+              </div>
+              <p className="text-sm text-gray-400">
+                このクライアント企業全体に適用されるルール・禁止事項。薬機法チェックの次に優先してAIが参照します。
+              </p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">
+              AI参照
+            </span>
+          </div>
+          <textarea
+            value={companyRegulations}
+            onChange={(e) => setCompanyRegulations(e.target.value)}
+            placeholder={`例:\n- 競合他社名（A社・B社）の言及・比較禁止\n- 「医師推薦」「専門家監修」表現は事前承認必須\n- SNS広告ではビフォーアフター画像禁止（Meta規約）\n- ブランドロゴ・カラーはブランドガイドライン準拠`}
+            rows={6}
+            className="w-full mt-4 px-4 py-3 rounded-xl bg-black/30 border border-white/10 focus:border-blue-500 focus:outline-none transition-colors resize-none text-sm font-mono"
+          />
+          <div className="flex items-center justify-between mt-3">
+            <p className="text-xs text-gray-600">{companyRegulations.length} 文字</p>
+            <button
+              onClick={saveCompanyRegulations}
+              disabled={savingCompanyRegs}
+              className="px-5 py-2 rounded-xl text-sm font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {companyRegsSaved ? "✓ 保存しました" : savingCompanyRegs ? "保存中..." : "保存"}
+            </button>
+          </div>
+        </section>
+
+        {/* ── Section 3: 企業レギュレーションファイル ── */}
+        <section className="p-6 rounded-2xl border border-blue-500/20 bg-blue-500/5">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">② 企業</span>
+                <h2 className="text-lg font-bold">企業レギュレーションファイル</h2>
+              </div>
+              <p className="text-sm text-gray-400">
+                企業共通のレギュレーション表（Excel/CSV）をアップロード。AIチェック時に自動参照されます。
+              </p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">
+              AI参照
+            </span>
+          </div>
+
+          <RegulationsFileUploadArea
+            fileName={companyFileName}
+            uploading={uploadingCompanyFile}
+            uploadResult={companyUploadResult}
+            fileError={companyFileError}
+            accentColor="blue"
+            onUpload={(e) => uploadRegulationsFile(e, "company")}
+            onDelete={() => deleteRegulationsFile("company")}
+          />
+        </section>
+
+        {/* ── Section 4: 案件レギュレーション（手入力） ── */}
+        <section className="p-6 rounded-2xl border border-violet-500/20 bg-violet-500/5">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-bold">③ 案件</span>
+                <h2 className="text-lg font-bold">案件レギュレーション</h2>
+              </div>
+              <p className="text-sm text-gray-400">
+                この案件専用の禁止表現・注意事項。企業レギュレーションの後にAIが参照します。
               </p>
             </div>
             <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">
@@ -298,8 +418,8 @@ export default function ProjectSettingsPage({
           <textarea
             value={regulations}
             onChange={(e) => setRegulations(e.target.value)}
-            placeholder={`例:\n- 「最安値」「業界No.1」表現禁止\n- 競合他社名（△△社、○○ブランド等）の言及禁止\n- Meta広告ポリシー準拠（ビフォーアフター画像禁止）\n- 「〇〇に効く」等の直接効果訴求禁止\n- 「医師推薦」「専門家監修」表現は根拠資料が必要`}
-            rows={8}
+            placeholder={`例:\n- 「最安値」「業界No.1」表現禁止\n- 「〇〇に効く」等の直接効果訴求禁止\n- 価格表示は税込み表示必須`}
+            rows={6}
             className="w-full mt-4 px-4 py-3 rounded-xl bg-black/30 border border-white/10 focus:border-violet-500 focus:outline-none transition-colors resize-none text-sm font-mono"
           />
           <div className="flex items-center justify-between mt-3">
@@ -314,13 +434,16 @@ export default function ProjectSettingsPage({
           </div>
         </section>
 
-        {/* ── Section 3: Regulations File ── */}
-        <section className="p-6 rounded-2xl border border-white/10 bg-white/5">
+        {/* ── Section 5: 案件レギュレーション・NG一覧ファイル ── */}
+        <section className="p-6 rounded-2xl border border-violet-500/20 bg-violet-500/5">
           <div className="flex items-start justify-between mb-2">
             <div>
-              <h2 className="text-lg font-bold">レギュレーションファイル</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                Excel / CSV のレギュレーション表をアップロード。AIチェック時に自動で参照されます。
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 font-bold">③ 案件</span>
+                <h2 className="text-lg font-bold">案件レギュレーション・NG一覧ファイル</h2>
+              </div>
+              <p className="text-sm text-gray-400">
+                案件固有のレギュレーション表・NG表現一覧（Excel/CSV）をアップロード。AIチェック時に自動参照されます。
               </p>
             </div>
             <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">
@@ -328,62 +451,18 @@ export default function ProjectSettingsPage({
             </span>
           </div>
 
-          {regulationsFileName ? (
-            <div className="mt-4 p-4 rounded-xl border border-green-500/30 bg-green-500/10">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-green-400 text-lg">✓</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-green-300 truncate">{regulationsFileName}</p>
-                    {uploadResult && (
-                      <p className="text-xs text-gray-400 mt-0.5">{uploadResult.extractedLength} 文字を抽出済み</p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <label className="px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 hover:bg-white/5 cursor-pointer transition-colors">
-                    差し替え
-                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={uploadRegulationsFile} />
-                  </label>
-                  <button
-                    onClick={deleteRegulationsFile}
-                    className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 transition-colors"
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-              {uploadResult?.preview && (
-                <div className="mt-3 p-3 rounded-lg bg-black/30 border border-white/10">
-                  <p className="text-xs text-gray-500 mb-1">抽出プレビュー（先頭300文字）</p>
-                  <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">{uploadResult.preview}</pre>
-                </div>
-              )}
-            </div>
-          ) : (
-            <label className={`mt-4 flex flex-col items-center justify-center w-full py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all ${uploadingFile ? "border-violet-500/50 bg-violet-500/5" : "border-white/20 hover:border-violet-500/40 hover:bg-violet-500/5"}`}>
-              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={uploadRegulationsFile} disabled={uploadingFile} />
-              {uploadingFile ? (
-                <>
-                  <div className="w-6 h-6 border-2 border-violet-400 border-t-transparent rounded-full animate-spin mb-2" />
-                  <p className="text-sm text-violet-300">解析中...</p>
-                </>
-              ) : (
-                <>
-                  <span className="text-2xl mb-2">📊</span>
-                  <p className="text-sm font-medium text-gray-300">Excel / CSV をアップロード</p>
-                  <p className="text-xs text-gray-500 mt-1">.xlsx .xls .csv に対応</p>
-                </>
-              )}
-            </label>
-          )}
-
-          {fileError && (
-            <p className="mt-2 text-sm text-red-400">{fileError}</p>
-          )}
+          <RegulationsFileUploadArea
+            fileName={regulationsFileName}
+            uploading={uploadingFile}
+            uploadResult={uploadResult}
+            fileError={fileError}
+            accentColor="violet"
+            onUpload={(e) => uploadRegulationsFile(e, "project")}
+            onDelete={() => deleteRegulationsFile("project")}
+          />
         </section>
 
-        {/* ── Section 4: NG Cases ── */}
+        {/* ── Section 6: NG Cases ── */}
         <section className="p-6 rounded-2xl border border-white/10 bg-white/5">
           <div className="flex items-start justify-between mb-2">
             <div>
@@ -397,7 +476,6 @@ export default function ProjectSettingsPage({
             </span>
           </div>
 
-          {/* Add NG Case Form */}
           {showNgForm ? (
             <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/20 space-y-3">
               <p className="text-sm font-medium text-gray-300">新しいNG事例を追加</p>
@@ -475,7 +553,6 @@ export default function ProjectSettingsPage({
             </button>
           )}
 
-          {/* NG Cases List */}
           {ngCases.length > 0 && (
             <div className="mt-4 space-y-3">
               <p className="text-xs text-gray-500">{ngCases.length} 件のNG事例が登録されています</p>
@@ -493,6 +570,93 @@ export default function ProjectSettingsPage({
         </section>
       </div>
     </div>
+  );
+}
+
+/** ファイルアップロードエリア（企業・案件共用） */
+function RegulationsFileUploadArea({
+  fileName,
+  uploading,
+  uploadResult,
+  fileError,
+  accentColor,
+  onUpload,
+  onDelete,
+}: {
+  fileName: string | null;
+  uploading: boolean;
+  uploadResult: { extractedLength: number; preview: string } | null;
+  fileError: string | null;
+  accentColor: "blue" | "violet";
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onDelete: () => void;
+}) {
+  const focusClass = accentColor === "blue" ? "focus:border-blue-500" : "focus:border-violet-500";
+  const borderClass = accentColor === "blue"
+    ? "border-blue-500/50 bg-blue-500/5"
+    : "border-violet-500/50 bg-violet-500/5";
+  const hoverClass = accentColor === "blue"
+    ? "hover:border-blue-500/40 hover:bg-blue-500/5"
+    : "hover:border-violet-500/40 hover:bg-violet-500/5";
+  const spinClass = accentColor === "blue" ? "border-blue-400" : "border-violet-400";
+  const textClass = accentColor === "blue" ? "text-blue-300" : "text-violet-300";
+
+  if (fileName) {
+    return (
+      <div className="mt-4 p-4 rounded-xl border border-green-500/30 bg-green-500/10">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-green-400 text-lg">✓</span>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-green-300 truncate">{fileName}</p>
+              {uploadResult && (
+                <p className="text-xs text-gray-400 mt-0.5">{uploadResult.extractedLength} 文字を抽出済み</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <label className={`px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 hover:bg-white/5 cursor-pointer transition-colors ${focusClass}`}>
+              差し替え
+              <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onUpload} />
+            </label>
+            <button
+              onClick={onDelete}
+              className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 transition-colors"
+            >
+              削除
+            </button>
+          </div>
+        </div>
+        {uploadResult?.preview && (
+          <div className="mt-3 p-3 rounded-lg bg-black/30 border border-white/10">
+            <p className="text-xs text-gray-500 mb-1">抽出プレビュー（先頭300文字）</p>
+            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">{uploadResult.preview}</pre>
+          </div>
+        )}
+        {fileError && <p className="mt-2 text-sm text-red-400">{fileError}</p>}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <label className={`mt-4 flex flex-col items-center justify-center w-full py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all ${uploading ? borderClass : `border-white/20 ${hoverClass}`}`}>
+        <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onUpload} disabled={uploading} />
+        {uploading ? (
+          <>
+            <div className={`w-6 h-6 border-2 ${spinClass} border-t-transparent rounded-full animate-spin mb-2`} />
+            <p className={`text-sm ${textClass}`}>解析中...</p>
+          </>
+        ) : (
+          <>
+            <span className="text-2xl mb-2">📊</span>
+            <p className="text-sm font-medium text-gray-300">Excel / CSV をアップロード</p>
+            <p className="text-xs text-gray-500 mt-1">.xlsx .xls .csv に対応</p>
+          </>
+        )}
+      </label>
+      {fileError && <p className="mt-2 text-sm text-red-400">{fileError}</p>}
+    </>
   );
 }
 

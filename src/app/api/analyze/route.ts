@@ -102,6 +102,9 @@ export async function POST(req: NextRequest) {
     contentType: work.contentType,
     targetCategory: work.targetCategory,
     customRegulations: work.customRegulations,
+    companyRegulations: project?.companyRegulations,
+    companyRegulationsFile: project?.companyRegulationsFileContent,
+    companyRegulationsFileName: project?.companyRegulationsFileName,
     projectRegulations: project?.regulations,
     projectRegulationsFile: project?.regulationsFileContent,
     projectRegulationsFileName: project?.regulationsFileName,
@@ -215,6 +218,9 @@ interface BuildPromptOptions {
   contentType: string;
   targetCategory?: string;
   customRegulations?: string;
+  companyRegulations?: string;
+  companyRegulationsFile?: string;
+  companyRegulationsFileName?: string;
   projectRegulations?: string;
   projectRegulationsFile?: string;
   projectRegulationsFileName?: string;
@@ -226,6 +232,7 @@ interface BuildPromptOptions {
 function buildPrompt(opts: BuildPromptOptions): string {
   const {
     title, contentType, targetCategory, customRegulations,
+    companyRegulations, companyRegulationsFile, companyRegulationsFileName,
     projectRegulations, projectRegulationsFile, projectRegulationsFileName,
     projectNgCases, textContent, extra,
   } = opts;
@@ -238,12 +245,22 @@ function buildPrompt(opts: BuildPromptOptions): string {
     ? `\n追加チェック項目（このコンテンツ専用）:\n${customRegulations}`
     : "";
 
+  // ── フェーズ②: 企業レギュレーション ──
+  const companyRegsNote = companyRegulations
+    ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n【フェーズ②】企業レギュレーション（法令チェックの次に優先）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${companyRegulations}`
+    : "";
+
+  const companyRegsFileNote = companyRegulationsFile
+    ? `\n\n【企業レギュレーションファイル${companyRegulationsFileName ? `（${companyRegulationsFileName}）` : ""}】\n${companyRegulationsFile}`
+    : "";
+
+  // ── フェーズ③: 案件レギュレーション ──
   const projectRegsNote = projectRegulations
-    ? `\n【案件レギュレーション（この案件すべてに適用）】\n${projectRegulations}`
+    ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n【フェーズ③】案件レギュレーション（企業レギュレーションの次に優先）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${projectRegulations}`
     : "";
 
   const projectRegsFileNote = projectRegulationsFile
-    ? `\n【案件レギュレーションファイル${projectRegulationsFileName ? `（${projectRegulationsFileName}）` : ""}】\n${projectRegulationsFile}`
+    ? `\n\n【案件レギュレーション・NG一覧ファイル${projectRegulationsFileName ? `（${projectRegulationsFileName}）` : ""}】\n${projectRegulationsFile}`
     : "";
 
   let ngCasesNote = "";
@@ -267,14 +284,16 @@ function buildPrompt(opts: BuildPromptOptions): string {
   const extraNote = extra ? `\n【補足】${extra}` : "";
 
   return `あなたは日本の広告法規・薬機法・景品表示法の専門家AIです。
-以下のクリエイティブ素材が、日本の法規制および広告ガイドラインに違反していないかをチェックしてください。
+以下のクリエイティブ素材を、下記の【3段階ジャッジフロー】に従って順番にチェックし、違反・問題点を網羅的に検出してください。
 
 【チェック対象】
 タイトル: ${title}
 コンテンツ種別: ${contentType}
-${categoryNote}${customNote}${projectRegsNote}${projectRegsFileNote}${ngCasesNote}${textSection}${extraNote}
+${categoryNote}${customNote}${textSection}${extraNote}
 
-【チェック対象の法規制・ガイドライン】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【フェーズ①】薬機法・広告法令チェック（最優先・絶対遵守）
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. **薬機法（医薬品医療機器等法）**
    - 未承認医薬品・医療機器の効能効果の標榜（68条）
    - 化粧品の効能範囲を超えた表現（医薬品的効能効果の標榜）
@@ -296,10 +315,13 @@ ${categoryNote}${customNote}${projectRegsNote}${projectRegsFileNote}${ngCasesNot
 5. **広告ガイドライン（一般）**
    - ビフォーアフター画像の過度な誇張
    - 体験談・口コミの使用制限
-   - 効果に関する根拠提示義務
+   - 効果に関する根拠提示義務${companyRegsNote}${companyRegsFileNote}${projectRegsNote}${projectRegsFileNote}${ngCasesNote}
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 【出力形式】
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 以下のJSON形式で返してください。JSONのみ出力し、余分なテキストは不要です。
+各issueには、どのフェーズ（①法令 / ②企業レギュレーション / ③案件レギュレーション）で検出されたかをcategoryまたはclause欄で明示してください。
 
 {
   "overallStatus": "ng" | "warning" | "ok",
@@ -308,7 +330,7 @@ ${categoryNote}${customNote}${projectRegsNote}${projectRegsFileNote}${ngCasesNot
     {
       "level": "violation" | "warning" | "caution",
       "category": "薬機法" | "景品表示法" | "健康増進法" | "広告ガイドライン" | "医師法" | "カスタム",
-      "clause": "条文番号（例: 薬機法68条）",
+      "clause": "条文番号または違反したルール（例: 薬機法68条 / 企業レギュレーション: 競合比較禁止 / 案件NG: No.1表現禁止）",
       "title": "問題点の見出し（30字以内）",
       "description": "詳細な説明（日本語）",
       "quote": "問題のある具体的な表現（テキストがある場合）",

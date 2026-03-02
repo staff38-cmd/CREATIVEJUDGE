@@ -6,6 +6,11 @@ export interface Project {
   clientName?: string;
   description?: string;
   createdAt: string;
+  // 企業レギュレーション（薬機法チェックの次に優先）
+  companyRegulations?: string;            // 企業共通レギュレーション（手入力）
+  companyRegulationsFileName?: string;    // 企業レギュレーションファイル名
+  companyRegulationsFileContent?: string; // 企業レギュレーションファイル抽出テキスト
+  // 案件レギュレーション（企業の次に優先）
   regulations?: string;            // 案件固有レギュレーション・禁止表現（手入力）
   ngCases?: NgCase[];              // 過去のNG事例ナレッジ
   regulationsFilePath?: string;    // アップロードされたレギュレーションファイルのパス
