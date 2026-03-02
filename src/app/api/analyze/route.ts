@@ -8,7 +8,75 @@ import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLeve
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GEMINI_UPLOAD_ENDPOINT = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`;
 const proxyAgent = process.env.HTTP_PROXY ? new HttpsProxyAgent(process.env.HTTP_PROXY) : undefined;
+
+type GeminiPart =
+  | { text: string }
+  | { inlineData: { mimeType: string; data: string } }
+  | { fileData: { mimeType: string; fileUri: string } };
+
+/** Gemini Files API に動画/PDFをアップロードし、ファイルURIを返す */
+async function uploadToFilesAPI(filePath: string, mimeType: string, displayName: string): Promise<string> {
+  const fileBuffer = fs.readFileSync(filePath);
+  const fileSize = fileBuffer.length;
+
+  // 1. Resumable upload を開始
+  const initRes = await fetch(GEMINI_UPLOAD_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "X-Goog-Upload-Protocol": "resumable",
+      "X-Goog-Upload-Command": "start",
+      "X-Goog-Upload-Header-Content-Length": String(fileSize),
+      "X-Goog-Upload-Header-Content-Type": mimeType,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ file: { display_name: displayName } }),
+    ...(proxyAgent ? { agent: proxyAgent } : {}),
+  });
+
+  const uploadUrl = initRes.headers.get("x-goog-upload-url");
+  if (!uploadUrl) throw new Error("Files API: upload URL が取得できませんでした");
+
+  // 2. ファイルデータをアップロード
+  const uploadRes = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      "Content-Length": String(fileSize),
+      "X-Goog-Upload-Offset": "0",
+      "X-Goog-Upload-Command": "upload, finalize",
+    },
+    body: fileBuffer,
+    ...(proxyAgent ? { agent: proxyAgent } : {}),
+  });
+
+  const uploadJson = await uploadRes.json() as { file?: { uri?: string; name?: string; state?: string } };
+  const fileUri = uploadJson.file?.uri;
+  if (!fileUri) throw new Error("Files API: ファイルURIが取得できませんでした");
+
+  // 3. 動画は処理完了まで待機（最大120秒）
+  const resourceName = uploadJson.file?.name;
+  if (resourceName && uploadJson.file?.state !== "ACTIVE") {
+    await waitForFileActive(resourceName, 120_000);
+  }
+
+  return fileUri;
+}
+
+async function waitForFileActive(resourceName: string, maxWaitMs: number): Promise<void> {
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${resourceName}?key=${GEMINI_API_KEY}`,
+      { ...(proxyAgent ? { agent: proxyAgent } : {}) }
+    );
+    const json = await res.json() as { state?: string };
+    if (json.state === "ACTIVE") return;
+    if (json.state === "FAILED") throw new Error("Files API: 動画の処理に失敗しました");
+  }
+  throw new Error("Files API: 動画処理がタイムアウトしました");
+}
 
 export async function POST(req: NextRequest) {
   const { workId } = await req.json();
@@ -40,7 +108,7 @@ export async function POST(req: NextRequest) {
     projectNgCases: project?.ngCases,
   };
 
-  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+  const parts: GeminiPart[] = [];
 
   if (isImage && work.filePath) {
     const fullPath = path.join(process.cwd(), "public", work.filePath);
@@ -63,13 +131,35 @@ export async function POST(req: NextRequest) {
         }),
       });
     }
-  } else if (isVideo) {
-    parts.push({
-      text: buildPrompt({
-        ...promptOpts,
-        extra: `動画ファイル名: ${work.fileName ?? "不明"}\n※ 動画の内容はファイル名・タイトル・カテゴリ情報をもとにチェックします。`,
-      }),
-    });
+  } else if (isVideo && work.filePath) {
+    const fullPath = path.join(process.cwd(), "public", work.filePath);
+    if (fs.existsSync(fullPath)) {
+      try {
+        const fileUri = await uploadToFilesAPI(fullPath, work.fileType!, work.fileName ?? "video");
+        parts.push({ fileData: { mimeType: work.fileType!, fileUri } });
+        parts.push({
+          text: buildPrompt({
+            ...promptOpts,
+            extra: "動画全体（映像・音声・テロップ・ナレーション・BGM）を対象に詳細にチェックしてください。",
+          }),
+        });
+      } catch (uploadErr) {
+        const msg = uploadErr instanceof Error ? uploadErr.message : "動画アップロードエラー";
+        parts.push({
+          text: buildPrompt({
+            ...promptOpts,
+            extra: `動画ファイル名: ${work.fileName ?? "不明"}\n※ 動画のアップロードに失敗したためテキスト情報のみでチェックします（${msg}）。`,
+          }),
+        });
+      }
+    } else {
+      parts.push({
+        text: buildPrompt({
+          ...promptOpts,
+          extra: `動画ファイル名: ${work.fileName ?? "不明"}\n※ 動画ファイルが見つからないためタイトル・カテゴリ情報のみでチェックします。`,
+        }),
+      });
+    }
   } else if (isPdf || work.contentType === "pdf") {
     parts.push({
       text: buildPrompt({
@@ -88,9 +178,8 @@ export async function POST(req: NextRequest) {
 
   // Build Gemini REST request body
   const geminiParts = parts.map((p) => {
-    if ("inlineData" in p) {
-      return { inlineData: p.inlineData };
-    }
+    if ("inlineData" in p) return { inlineData: p.inlineData };
+    if ("fileData" in p) return { fileData: p.fileData };
     return { text: (p as { text: string }).text };
   });
 
