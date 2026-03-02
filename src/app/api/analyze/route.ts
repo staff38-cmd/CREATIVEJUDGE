@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI, Part } from "@google/generative-ai";
 import fs from "fs";
 import path from "path";
+import fetch from "node-fetch";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { getWork, saveWork, getProject } from "@/lib/storage";
 import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLevel } from "@/lib/types";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+const proxyAgent = process.env.HTTP_PROXY ? new HttpsProxyAgent(process.env.HTTP_PROXY) : undefined;
 
 export async function POST(req: NextRequest) {
   const { workId } = await req.json();
@@ -35,7 +38,7 @@ export async function POST(req: NextRequest) {
     projectNgCases: project?.ngCases,
   };
 
-  const parts: Part[] = [];
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
 
   if (isImage && work.filePath) {
     const fullPath = path.join(process.cwd(), "public", work.filePath);
@@ -81,11 +84,28 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // Build Gemini REST request body
+  const geminiParts = parts.map((p) => {
+    if ("inlineData" in p) {
+      return { inlineData: p.inlineData };
+    }
+    return { text: (p as { text: string }).text };
+  });
+
   let responseText: string;
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const result = await model.generateContent(parts);
-    responseText = result.response.text();
+    const res = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: geminiParts }] }),
+      ...(proxyAgent ? { agent: proxyAgent } : {}),
+    });
+    if (!res.ok) {
+      const errBody = await res.text();
+      throw new Error(`Gemini API ${res.status}: ${errBody}`);
+    }
+    const json = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    responseText = json.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Gemini API エラー";
     return NextResponse.json({ error: msg }, { status: 500 });
