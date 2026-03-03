@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getWork } from "@/lib/storage";
+import { getWork, deleteWork } from "@/lib/storage";
+import fs from "fs";
+import path from "path";
 
 export async function GET(
   _req: NextRequest,
@@ -11,4 +13,25 @@ export async function GET(
     return NextResponse.json({ error: "作品が見つかりません" }, { status: 404 });
   }
   return NextResponse.json(work);
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const work = getWork(id);
+  if (!work) {
+    return NextResponse.json({ error: "作品が見つかりません" }, { status: 404 });
+  }
+
+  if (work.filePath) {
+    const fullPath = path.join(process.cwd(), "public", work.filePath);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  }
+
+  deleteWork(id);
+  return NextResponse.json({ success: true });
 }

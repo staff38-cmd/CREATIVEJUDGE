@@ -40,14 +40,15 @@ export default function HomePage() {
       {/* Features */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
         {features.map((f) => (
-          <div
+          <Link
             key={f.title}
-            className="p-6 rounded-2xl border border-white/10 bg-white/5 hover:border-white/20 transition-colors"
+            href={f.href}
+            className="p-6 rounded-2xl border border-white/10 bg-white/5 hover:border-violet-500/50 hover:bg-violet-500/5 transition-colors cursor-pointer"
           >
             <div className="text-3xl mb-4">{f.icon}</div>
             <h3 className="text-base font-bold mb-2">{f.title}</h3>
             <p className="text-gray-400 text-sm leading-relaxed">{f.description}</p>
-          </div>
+          </Link>
         ))}
       </div>
 
@@ -103,21 +104,25 @@ const features = [
     icon: "🖼️",
     title: "画像チェック",
     description: "バナー・広告画像のテキストや表現をビジョンAIで解析。",
+    href: "/submit?mode=file",
   },
   {
     icon: "🎬",
     title: "動画チェック",
     description: "動画広告のタイトル・説明情報をもとに規制リスクを評価。",
+    href: "/submit?mode=file",
   },
   {
     icon: "📰",
     title: "LP・記事チェック",
     description: "LPや広告記事のテキストを全文チェック。具体的な問題箇所を引用して指摘。",
+    href: "/submit?mode=text&type=lp",
   },
   {
     icon: "📝",
     title: "テキスト原稿チェック",
     description: "キャッチコピーや広告文をそのまま貼り付けてチェック。",
+    href: "/submit?mode=text&type=text",
   },
 ];
 

@@ -1,4 +1,31 @@
-export type ContentType = "image" | "video" | "text" | "lp" | "pdf";
+export type ContentType = "image" | "video" | "text" | "lp" | "url";
+
+export interface Project {
+  id: string;
+  name: string;
+  clientName?: string;
+  description?: string;
+  createdAt: string;
+  // 企業レギュレーション（薬機法チェックの次に優先）
+  companyRegulations?: string;            // 企業共通レギュレーション（手入力）
+  companyRegulationsFileName?: string;    // 企業レギュレーションファイル名
+  companyRegulationsFileContent?: string; // 企業レギュレーションファイル抽出テキスト
+  // 案件レギュレーション（企業の次に優先）
+  regulations?: string;            // 案件固有レギュレーション・禁止表現（手入力）
+  ngCases?: NgCase[];              // 過去のNG事例ナレッジ
+  regulationsFilePath?: string;    // アップロードされたレギュレーションファイルのパス
+  regulationsFileName?: string;    // 元のファイル名
+  regulationsFileContent?: string; // ファイルから抽出したテキスト（AIプロンプト用キャッシュ）
+}
+
+export interface NgCase {
+  id: string;
+  title: string;           // NG事例のタイトル
+  description: string;     // 詳細・理由
+  category?: RegulationCategory;
+  quote?: string;          // 問題のあった具体的な表現
+  addedAt: string;
+}
 
 export type RiskLevel = "violation" | "warning" | "caution" | "ok";
 
@@ -14,7 +41,7 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   video: "動画",
   text: "テキスト",
   lp: "LP・記事",
-  pdf: "PDF",
+  url: "URL取得",
 };
 
 export type RegulationCategory =
@@ -53,10 +80,13 @@ export interface Work {
   filePath?: string;
   // Text-based content
   textContent?: string;
+  // URL-based content
+  sourceUrl?: string;
   submittedAt: string;
   complianceResult?: ComplianceResult;
   customRegulations?: string;   // 追加のレギュレーション指定
   targetCategory?: string;      // 商品カテゴリ（化粧品・サプリ・医薬品等）
+  projectId?: string;           // 所属案件ID
 }
 
 export interface WorkSummary {
@@ -65,6 +95,7 @@ export interface WorkSummary {
   contentType: ContentType;
   filePath?: string;
   fileType?: string;
+  sourceUrl?: string;
   submittedAt: string;
   overallStatus?: "ng" | "warning" | "ok";
   issueCount: number;
@@ -72,4 +103,6 @@ export interface WorkSummary {
   warningCount: number;
   hasResult: boolean;
   targetCategory?: string;
+  projectId?: string;
+  projectName?: string;
 }

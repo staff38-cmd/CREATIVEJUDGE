@@ -123,10 +123,27 @@ export default function WorkDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           )}
 
+          {/* URL source */}
+          {work.sourceUrl && (
+            <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+              <p className="text-xs text-gray-500 mb-1">取得元URL</p>
+              <a
+                href={work.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-violet-400 hover:underline break-all"
+              >
+                {work.sourceUrl}
+              </a>
+            </div>
+          )}
+
           {/* Text preview */}
           {work.textContent && (
             <div className="rounded-2xl bg-white/5 border border-white/10 p-4 max-h-48 overflow-y-auto">
-              <p className="text-xs text-gray-500 mb-2">チェック対象テキスト</p>
+              <p className="text-xs text-gray-500 mb-2">
+                {work.sourceUrl ? "取得したテキスト" : "チェック対象テキスト"}
+              </p>
               <p className="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed">{work.textContent}</p>
             </div>
           )}

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { ContentType } from "@/lib/types";
+import { useState, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ContentType, Project } from "@/lib/types";
 
-type InputMode = "file" | "text";
+type InputMode = "file" | "text" | "url";
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 const ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -15,7 +15,6 @@ const ALLOWED_TYPES = [
   "video/mp4",
   "video/webm",
   "video/quicktime",
-  "application/pdf",
 ];
 
 const TARGET_CATEGORIES = [
@@ -31,75 +30,215 @@ const TARGET_CATEGORIES = [
   "その他",
 ];
 
-export default function SubmitPage() {
+function fileIcon(fileType: string) {
+  if (fileType.startsWith("image/")) return "🖼️";
+  if (fileType.startsWith("video/")) return "🎬";
+  return "📄";
+}
+
+function inferContentType(fileType: string): ContentType {
+  if (fileType.startsWith("image/")) return "image";
+  return "video";
+}
+
+function SubmitForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [inputMode, setInputMode] = useState<InputMode>("file");
+  const rawMode = searchParams.get("mode");
+  const initialMode: InputMode = rawMode === "text" || rawMode === "url" ? rawMode : "file";
+  const rawType = searchParams.get("type");
+  const initialType: "text" | "lp" = rawType === "text" ? "text" : "lp";
+
+  const [inputMode, setInputMode] = useState<InputMode>(initialMode);
 
   const [form, setForm] = useState({
-    title: "",
     targetCategory: "",
     customRegulations: "",
   });
   const [textContent, setTextContent] = useState("");
-  const [textContentType, setTextContentType] = useState<"text" | "lp">("lp");
-  const [file, setFile] = useState<File | null>(null);
+  const [textContentType, setTextContentType] = useState<"text" | "lp">(initialType);
+  const [sourceUrl, setSourceUrl] = useState("");
+
+  // 複数ファイル対応
+  const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
+
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState("");
 
-  function handleFile(f: File) {
-    if (!ALLOWED_TYPES.includes(f.type)) {
-      setError("対応していないファイル形式です（JPEG/PNG/WebP/GIF/MP4/WebM/MOV/PDF）");
-      return;
+  // チェック結果サマリー
+  type ResultItem = { id: string; name: string; status: "ng" | "warning" | "ok" };
+  const [resultItems, setResultItems] = useState<ResultItem[]>([]);
+
+  // Project state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(searchParams.get("project") ?? "");
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectClient, setNewProjectClient] = useState("");
+  const [creatingProject, setCreatingProject] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((data) => setProjects(data))
+      .catch(() => {});
+  }, []);
+
+  async function handleCreateProject() {
+    if (!newProjectName.trim()) return;
+    setCreatingProject(true);
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newProjectName.trim(), clientName: newProjectClient.trim() }),
+      });
+      if (res.ok) {
+        const project: Project = await res.json();
+        setProjects((prev) => [project, ...prev]);
+        setSelectedProjectId(project.id);
+        setShowNewProject(false);
+        setNewProjectName("");
+        setNewProjectClient("");
+      }
+    } finally {
+      setCreatingProject(false);
     }
-    if (f.size > MAX_FILE_SIZE) {
-      setError("ファイルサイズは50MB以内にしてください");
-      return;
-    }
-    setError("");
-    setFile(f);
   }
 
-  function inferContentType(fileType: string): ContentType {
-    if (fileType.startsWith("image/")) return "image";
-    if (fileType.startsWith("video/")) return "video";
-    return "pdf";
+  function addFiles(incoming: FileList | File[]) {
+    const arr = Array.from(incoming);
+    const errors: string[] = [];
+    const valid: File[] = [];
+
+    for (const f of arr) {
+      if (!ALLOWED_TYPES.includes(f.type)) {
+        errors.push(`${f.name}: 対応していない形式です`);
+        continue;
+      }
+      if (f.size > MAX_FILE_SIZE) {
+        errors.push(`${f.name}: 500MB を超えています`);
+        continue;
+      }
+      if (files.some((ex) => ex.name === f.name && ex.size === f.size)) continue;
+      valid.push(f);
+    }
+
+    if (errors.length > 0) setError(errors.join("\n"));
+    else setError("");
+
+    setFiles((prev) => [...prev, ...valid]);
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) {
-      setError("タイトルを入力してください");
-      return;
-    }
-
     setSubmitting(true);
     setError("");
 
     try {
-      let id: string;
-
       if (inputMode === "file") {
-        if (!file) {
+        if (files.length === 0) {
           setError("ファイルを選択してください");
           setSubmitting(false);
           return;
         }
-        const fd = new FormData();
-        fd.append("title", form.title);
-        fd.append("contentType", inferContentType(file.type));
-        fd.append("targetCategory", form.targetCategory);
-        fd.append("customRegulations", form.customRegulations);
-        fd.append("file", file);
 
-        const res = await fetch("/api/works", { method: "POST", body: fd });
+        const workIds: string[] = [];
+
+        // Step 1: 全ファイルを登録
+        for (let i = 0; i < files.length; i++) {
+          const f = files[i];
+          const title = f.name;
+          setProgress({ done: i, total: files.length * 2 });
+
+          const fd = new FormData();
+          fd.append("title", title);
+          fd.append("contentType", inferContentType(f.type));
+          fd.append("targetCategory", form.targetCategory);
+          fd.append("customRegulations", form.customRegulations);
+          fd.append("projectId", selectedProjectId);
+          fd.append("file", f);
+
+          const res = await fetch("/api/works", { method: "POST", body: fd });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || `${f.name} の登録に失敗しました`);
+          }
+          const { id } = await res.json();
+          workIds.push(id);
+        }
+
+        // Step 2: 全件AIチェック
+        const results: ResultItem[] = [];
+        for (let i = 0; i < workIds.length; i++) {
+          setProgress({ done: files.length + i, total: files.length * 2 });
+          const analyzeRes = await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ workId: workIds[i] }),
+          });
+          const analyzeData = await analyzeRes.json();
+          results.push({
+            id: workIds[i],
+            name: files[i].name,
+            status: analyzeData.complianceResult?.overallStatus ?? "warning",
+          });
+        }
+
+        setProgress({ done: files.length * 2, total: files.length * 2 });
+        setResultItems(results);
+
+      } else if (inputMode === "url") {
+        // URL モード（1件ずつ）
+        if (!sourceUrl.trim()) {
+          setError("URLを入力してください");
+          setSubmitting(false);
+          return;
+        }
+        if (!/^https?:\/\/.+/.test(sourceUrl.trim())) {
+          setError("http:// または https:// から始まるURLを入力してください");
+          setSubmitting(false);
+          return;
+        }
+
+        const res = await fetch("/api/works", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: sourceUrl.trim(),
+            sourceUrl: sourceUrl.trim(),
+            contentType: "url",
+            targetCategory: form.targetCategory,
+            customRegulations: form.customRegulations,
+            projectId: selectedProjectId || undefined,
+          }),
+        });
         if (!res.ok) {
           const data = await res.json();
           throw new Error(data.error || "登録に失敗しました");
         }
-        ({ id } = await res.json());
+        const { id: urlWorkId } = await res.json();
+        const analyzeRes = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workId: urlWorkId }),
+        });
+        const analyzeData = await analyzeRes.json();
+        setResultItems([{
+          id: urlWorkId,
+          name: sourceUrl.trim(),
+          status: analyzeData.complianceResult?.overallStatus ?? "warning",
+        }]);
+
       } else {
+        // テキストモード
         if (!textContent.trim()) {
           setError("チェックするテキストを入力してください");
           setSubmitting(false);
@@ -109,25 +248,106 @@ export default function SubmitPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: form.title,
+            title: textContent.trim().slice(0, 40) || "テキスト",
             textContent,
             contentType: textContentType,
             targetCategory: form.targetCategory,
             customRegulations: form.customRegulations,
+            projectId: selectedProjectId || undefined,
           }),
         });
         if (!res.ok) {
           const data = await res.json();
           throw new Error(data.error || "登録に失敗しました");
         }
-        ({ id } = await res.json());
+        const { id: textWorkId } = await res.json();
+        const analyzeRes = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workId: textWorkId }),
+        });
+        const analyzeData = await analyzeRes.json();
+        setResultItems([{
+          id: textWorkId,
+          name: textContent.trim().slice(0, 40) || "テキスト",
+          status: analyzeData.complianceResult?.overallStatus ?? "warning",
+        }]);
       }
-
-      router.push(`/works/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
+    } finally {
       setSubmitting(false);
+      setProgress(null);
     }
+  }
+
+  const submitLabel = () => {
+    if (!submitting) {
+      if (inputMode === "file" && files.length > 1) return `${files.length}件を登録してAIチェック`;
+      if (inputMode === "url") return "URLを取得してAIチェックへ";
+      return "登録してAIチェックへ";
+    }
+    if (progress) {
+      const { done, total } = progress;
+      const half = total / 2;
+      if (done < half) return `登録中... (${done + 1}/${half}件)`;
+      return `AIチェック中... (${done - half + 1}/${half}件)`;
+    }
+    return "処理中...";
+  };
+
+  const STATUS_INFO = {
+    ng:      { label: "NG",   cls: "bg-red-500/20 text-red-400 border-red-500/30" },
+    warning: { label: "要注意", cls: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+    ok:      { label: "OK",   cls: "bg-green-500/20 text-green-400 border-green-500/30" },
+  };
+
+  // 結果サマリー画面
+  if (resultItems.length > 0) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <h1 className="text-3xl font-black mb-2">チェック完了</h1>
+        <p className="text-gray-400 mb-8">{resultItems.length} 件のチェックが完了しました</p>
+
+        <div className="space-y-3 mb-8">
+          {resultItems.map((item) => {
+            const s = STATUS_INFO[item.status];
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-white/5"
+              >
+                <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full border ${s.cls}`}>
+                  {s.label}
+                </span>
+                <p className="flex-1 text-sm font-medium truncate">{item.name}</p>
+                <a
+                  href={`/works/${item.id}`}
+                  className="flex-shrink-0 text-sm text-violet-400 hover:text-violet-300 transition-colors whitespace-nowrap"
+                >
+                  詳細を見る →
+                </a>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => { setResultItems([]); setFiles([]); setTextContent(""); setSourceUrl(""); setError(""); }}
+            className="flex-1 py-3 rounded-xl font-semibold border border-white/20 hover:bg-white/5 transition-colors"
+          >
+            新しくチェックする
+          </button>
+          <a
+            href="/works"
+            className="flex-1 py-3 rounded-xl font-semibold text-center bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 transition-all"
+          >
+            チェック履歴へ
+          </a>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -139,36 +359,95 @@ export default function SubmitPage() {
 
       {/* Input Mode Toggle */}
       <div className="flex gap-2 mb-8 p-1 rounded-xl bg-white/5 border border-white/10">
-        {(["file", "text"] as InputMode[]).map((mode) => (
+        {([
+          { key: "file", label: "📎 ファイル" },
+          { key: "text", label: "📝 テキスト貼り付け" },
+          { key: "url",  label: "🔗 URL取得" },
+        ] as { key: InputMode; label: string }[]).map(({ key, label }) => (
           <button
-            key={mode}
+            key={key}
             type="button"
-            onClick={() => setInputMode(mode)}
+            onClick={() => setInputMode(key)}
             className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-              inputMode === mode
+              inputMode === key
                 ? "bg-violet-500 text-white"
                 : "text-gray-400 hover:text-white"
             }`}
           >
-            {mode === "file" ? "📎 ファイルアップロード" : "📝 テキスト・LP貼り付け"}
+            {label}
           </button>
         ))}
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Title */}
+        {/* Project Selector */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            タイトル・管理名 <span className="text-red-400">*</span>
+            案件 <span className="text-gray-500">（任意）</span>
           </label>
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder="例: ○○サプリ LP 2025年3月版"
-            required
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
-          />
+          {!showNewProject ? (
+            <div className="flex gap-2">
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
+              >
+                <option value="" className="bg-gray-900">案件なし</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id} className="bg-gray-900">
+                    {p.name}{p.clientName ? ` (${p.clientName})` : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setShowNewProject(true)}
+                className="px-4 py-3 rounded-xl text-sm font-medium border border-white/20 hover:border-violet-500/50 hover:bg-violet-500/10 transition-colors whitespace-nowrap"
+              >
+                ＋ 新規案件
+              </button>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl border border-violet-500/30 bg-violet-500/5 space-y-3">
+              <p className="text-sm font-medium text-violet-300">新規案件を作成</p>
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="案件名 *"
+                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none text-sm transition-colors"
+              />
+              <input
+                type="text"
+                value={newProjectClient}
+                onChange={(e) => setNewProjectClient(e.target.value)}
+                placeholder="クライアント名（任意）"
+                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none text-sm transition-colors"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreateProject}
+                  disabled={!newProjectName.trim() || creatingProject}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {creatingProject ? "作成中..." : "作成して選択"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowNewProject(false); setNewProjectName(""); setNewProjectClient(""); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-white/20 hover:bg-white/5 transition-colors"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          )}
+          {selectedProjectId && !showNewProject && (
+            <p className="text-xs text-violet-400 mt-1">
+              ✓ {projects.find((p) => p.id === selectedProjectId)?.name} に登録されます
+            </p>
+          )}
         </div>
 
         {/* Target Category */}
@@ -193,30 +472,28 @@ export default function SubmitPage() {
           </p>
         </div>
 
-        {/* File or Text Input */}
+        {/* ── Input area ── */}
         {inputMode === "file" ? (
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               ファイル <span className="text-red-400">*</span>
+              <span className="ml-2 text-xs text-gray-500 font-normal">複数選択・ドロップ可（画像・動画）</span>
             </label>
+
             <div
-              className={`rounded-2xl border-2 border-dashed transition-colors p-10 text-center cursor-pointer ${
+              className={`rounded-2xl border-2 border-dashed transition-colors p-8 text-center cursor-pointer ${
                 dragOver
                   ? "border-violet-400 bg-violet-500/10"
-                  : file
-                  ? "border-green-500/50 bg-green-500/5"
+                  : files.length > 0
+                  ? "border-violet-500/40 bg-violet-500/5"
                   : "border-white/20 hover:border-white/40"
               }`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={(e) => {
                 e.preventDefault();
                 setDragOver(false);
-                const f = e.dataTransfer.files[0];
-                if (f) handleFile(f);
+                if (e.dataTransfer.files.length > 0) addFiles(e.dataTransfer.files);
               }}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -224,38 +501,70 @@ export default function SubmitPage() {
                 ref={fileInputRef}
                 type="file"
                 accept={ALLOWED_TYPES.join(",")}
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) handleFile(f);
+                  if (e.target.files && e.target.files.length > 0) {
+                    addFiles(e.target.files);
+                    e.target.value = "";
+                  }
                 }}
               />
-              {file ? (
-                <div>
-                  <div className="text-4xl mb-2">
-                    {file.type.startsWith("image/")
-                      ? "🖼️"
-                      : file.type.startsWith("video/")
-                      ? "🎬"
-                      : "📄"}
-                  </div>
-                  <p className="font-semibold text-green-400">{file.name}</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                  <p className="text-xs text-gray-600 mt-2">クリックして変更</p>
-                </div>
-              ) : (
-                <div>
-                  <div className="text-4xl mb-3">📂</div>
-                  <p className="font-semibold">ファイルをドロップ、またはクリックして選択</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）・PDF（最大50MB）
-                  </p>
-                </div>
-              )}
+              <div className="text-3xl mb-2">📂</div>
+              <p className="font-semibold text-sm">
+                {files.length > 0
+                  ? "さらに追加する場合はここをクリック／ドロップ"
+                  : "ファイルをドロップ、またはクリックして選択"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                画像（JPEG/PNG/WebP/GIF）・動画（MP4/WebM/MOV）（最大500MB）
+              </p>
             </div>
+
+            {files.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-gray-400">{files.length} 件選択中</p>
+                {files.map((f, i) => (
+                  <div
+                    key={`${f.name}-${f.size}-${i}`}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10"
+                  >
+                    <span className="text-xl flex-shrink-0">{fileIcon(f.type)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{f.name}</p>
+                      <p className="text-xs text-gray-500">{(f.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                      className="text-gray-600 hover:text-red-400 transition-colors text-sm px-2 py-1 rounded hover:bg-red-500/10 flex-shrink-0"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
+        ) : inputMode === "url" ? (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              チェックするページのURL <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="url"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              placeholder="https://example.com/lp/product"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors font-mono text-sm"
+            />
+            <p className="text-xs text-gray-500 mt-2">
+              登録時にページのHTMLを取得してテキストを抽出します。<br />
+              JavaScriptで描画されるSPAページは取得できない場合があります。
+            </p>
+          </div>
+
         ) : (
           <div>
             <div className="flex items-center gap-3 mb-3">
@@ -309,8 +618,21 @@ export default function SubmitPage() {
         </div>
 
         {error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-line">
             {error}
+          </div>
+        )}
+
+        {/* Progress bar */}
+        {submitting && progress && (
+          <div className="space-y-2">
+            <div className="w-full bg-white/10 rounded-full h-2">
+              <div
+                className="bg-gradient-to-r from-violet-500 to-pink-500 h-2 rounded-full transition-all duration-500"
+                style={{ width: `${(progress.done / progress.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-xs text-center text-gray-400">{submitLabel()}</p>
           </div>
         )}
 
@@ -319,9 +641,17 @@ export default function SubmitPage() {
           disabled={submitting}
           className="w-full py-4 rounded-xl font-bold text-lg bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
-          {submitting ? "登録中..." : "登録してAIチェックへ"}
+          {submitLabel()}
         </button>
       </form>
     </div>
+  );
+}
+
+export default function SubmitPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-500">読み込み中...</div>}>
+      <SubmitForm />
+    </Suspense>
   );
 }

@@ -24,6 +24,9 @@ export default function RootLayout({
                 </span>
               </Link>
               <div className="flex items-center gap-6">
+                <Link href="/projects" className="text-sm text-gray-400 hover:text-white transition-colors">
+                  案件
+                </Link>
                 <Link href="/works" className="text-sm text-gray-400 hover:text-white transition-colors">
                   チェック履歴
                 </Link>

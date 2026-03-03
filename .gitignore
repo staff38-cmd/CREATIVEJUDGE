@@ -36,3 +36,6 @@ next-env.d.ts
 
 # uploads
 /public/uploads/
+
+# data (keep directory, ignore json files)
+/data/*.json
