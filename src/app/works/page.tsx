@@ -152,7 +152,11 @@ function WorksContent() {
       ) : (
         <div className="space-y-3">
           {filtered.map((work) => (
-            <WorkRow key={work.id} work={work} />
+            <WorkRow
+              key={work.id}
+              work={work}
+              onDelete={() => setWorks((prev) => prev.filter((w) => w.id !== work.id))}
+            />
           ))}
         </div>
       )}
@@ -168,66 +172,94 @@ export default function WorksPage() {
   );
 }
 
-function WorkRow({ work }: { work: WorkSummary }) {
+function WorkRow({ work, onDelete }: { work: WorkSummary; onDelete: () => void }) {
+  const [deleting, setDeleting] = useState(false);
   const isImage = work.fileType?.startsWith("image/");
   const statusBadge = work.overallStatus ? STATUS_BADGE[work.overallStatus] : null;
 
-  return (
-    <Link href={`/works/${work.id}`}>
-      <div className="flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-white/5 hover:border-violet-500/30 hover:bg-white/8 transition-all cursor-pointer">
-        {/* Thumbnail */}
-        <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-black/30 flex-shrink-0">
-          {isImage && work.filePath ? (
-            <Image src={work.filePath} alt={work.title} fill className="object-cover" unoptimized />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-2xl">
-              {work.contentType === "video"
-                ? "🎬"
-                : work.contentType === "url"
-                ? "🔗"
-                : work.contentType === "lp"
-                ? "📰"
-                : "📝"}
-            </div>
-          )}
-        </div>
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`「${work.title}」を削除しますか？`)) return;
+    setDeleting(true);
+    await fetch(`/api/works/${work.id}`, { method: "DELETE" });
+    onDelete();
+  }
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <p className="font-bold truncate">{work.title}</p>
-          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-            <span>{CONTENT_TYPE_LABELS[work.contentType]}</span>
-            {work.projectName && (
-              <span className="text-violet-400/70">📁 {work.projectName}</span>
+  return (
+    <div className="relative group">
+      <Link href={`/works/${work.id}`}>
+        <div className="flex items-center gap-4 p-4 pr-14 rounded-2xl border border-white/10 bg-white/5 hover:border-violet-500/30 hover:bg-white/8 transition-all cursor-pointer">
+          {/* Thumbnail */}
+          <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-black/30 flex-shrink-0">
+            {isImage && work.filePath ? (
+              <Image src={work.filePath} alt={work.title} fill className="object-cover" unoptimized />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-2xl">
+                {work.contentType === "video"
+                  ? "🎬"
+                  : work.contentType === "url"
+                  ? "🔗"
+                  : work.contentType === "lp"
+                  ? "📰"
+                  : "📝"}
+              </div>
             )}
-            {work.targetCategory && <span>{work.targetCategory}</span>}
-            <span>{new Date(work.submittedAt).toLocaleDateString("ja-JP")}</span>
+          </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <p className="font-bold truncate">{work.title}</p>
+            <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+              <span>{CONTENT_TYPE_LABELS[work.contentType]}</span>
+              {work.projectName && (
+                <span className="text-violet-400/70">📁 {work.projectName}</span>
+              )}
+              {work.targetCategory && <span>{work.targetCategory}</span>}
+              <span>{new Date(work.submittedAt).toLocaleDateString("ja-JP")}</span>
+            </div>
+          </div>
+
+          {/* Status */}
+          <div className="flex-shrink-0 text-right">
+            {statusBadge ? (
+              <div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${statusBadge.className}`}>
+                  {statusBadge.label}
+                </span>
+                {work.issueCount > 0 && (
+                  <div className="flex justify-end gap-2 mt-1.5 text-xs">
+                    {work.violationCount > 0 && (
+                      <span className="text-red-400">🚫 {work.violationCount}</span>
+                    )}
+                    {work.warningCount > 0 && (
+                      <span className="text-yellow-400">⚠️ {work.warningCount}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span className="text-xs text-gray-600">未チェック</span>
+            )}
           </div>
         </div>
+      </Link>
 
-        {/* Status */}
-        <div className="flex-shrink-0 text-right">
-          {statusBadge ? (
-            <div>
-              <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${statusBadge.className}`}>
-                {statusBadge.label}
-              </span>
-              {work.issueCount > 0 && (
-                <div className="flex justify-end gap-2 mt-1.5 text-xs">
-                  {work.violationCount > 0 && (
-                    <span className="text-red-400">🚫 {work.violationCount}</span>
-                  )}
-                  {work.warningCount > 0 && (
-                    <span className="text-yellow-400">⚠️ {work.warningCount}</span>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <span className="text-xs text-gray-600">未チェック</span>
-          )}
-        </div>
-      </div>
-    </Link>
+      {/* Delete button */}
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-30"
+        title="削除"
+      >
+        {deleting ? (
+          <span className="text-xs">...</span>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        )}
+      </button>
+    </div>
   );
 }

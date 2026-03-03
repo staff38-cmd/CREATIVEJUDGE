@@ -53,7 +53,6 @@ function SubmitForm() {
   const [inputMode, setInputMode] = useState<InputMode>(initialMode);
 
   const [form, setForm] = useState({
-    title: "",
     targetCategory: "",
     customRegulations: "",
   });
@@ -68,6 +67,10 @@ function SubmitForm() {
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState("");
+
+  // チェック結果サマリー
+  type ResultItem = { id: string; name: string; status: "ng" | "warning" | "ok" };
+  const [resultItems, setResultItems] = useState<ResultItem[]>([]);
 
   // Project state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -136,11 +139,6 @@ function SubmitForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) {
-      setError("タイトルを入力してください");
-      return;
-    }
-
     setSubmitting(true);
     setError("");
 
@@ -152,14 +150,12 @@ function SubmitForm() {
           return;
         }
 
-        const baseTitle = form.title.trim();
-        const isMultiple = files.length > 1;
         const workIds: string[] = [];
 
         // Step 1: 全ファイルを登録
         for (let i = 0; i < files.length; i++) {
           const f = files[i];
-          const title = isMultiple ? `${baseTitle} (${i + 1}/${files.length})` : baseTitle;
+          const title = f.name;
           setProgress({ done: i, total: files.length * 2 });
 
           const fd = new FormData();
@@ -180,23 +176,24 @@ function SubmitForm() {
         }
 
         // Step 2: 全件AIチェック
+        const results: ResultItem[] = [];
         for (let i = 0; i < workIds.length; i++) {
           setProgress({ done: files.length + i, total: files.length * 2 });
-          await fetch("/api/analyze", {
+          const analyzeRes = await fetch("/api/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ workId: workIds[i] }),
           });
+          const analyzeData = await analyzeRes.json();
+          results.push({
+            id: workIds[i],
+            name: files[i].name,
+            status: analyzeData.complianceResult?.overallStatus ?? "warning",
+          });
         }
 
         setProgress({ done: files.length * 2, total: files.length * 2 });
-
-        if (workIds.length === 1) {
-          router.push(`/works/${workIds[0]}`);
-        } else {
-          const qs = selectedProjectId ? `?project=${selectedProjectId}` : "";
-          router.push(`/works${qs}`);
-        }
+        setResultItems(results);
 
       } else if (inputMode === "url") {
         // URL モード（1件ずつ）
@@ -215,7 +212,7 @@ function SubmitForm() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: form.title,
+            title: sourceUrl.trim(),
             sourceUrl: sourceUrl.trim(),
             contentType: "url",
             targetCategory: form.targetCategory,
@@ -227,8 +224,18 @@ function SubmitForm() {
           const data = await res.json();
           throw new Error(data.error || "登録に失敗しました");
         }
-        const { id } = await res.json();
-        router.push(`/works/${id}`);
+        const { id: urlWorkId } = await res.json();
+        const analyzeRes = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workId: urlWorkId }),
+        });
+        const analyzeData = await analyzeRes.json();
+        setResultItems([{
+          id: urlWorkId,
+          name: sourceUrl.trim(),
+          status: analyzeData.complianceResult?.overallStatus ?? "warning",
+        }]);
 
       } else {
         // テキストモード
@@ -241,7 +248,7 @@ function SubmitForm() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title: form.title,
+            title: textContent.trim().slice(0, 40) || "テキスト",
             textContent,
             contentType: textContentType,
             targetCategory: form.targetCategory,
@@ -253,11 +260,22 @@ function SubmitForm() {
           const data = await res.json();
           throw new Error(data.error || "登録に失敗しました");
         }
-        const { id } = await res.json();
-        router.push(`/works/${id}`);
+        const { id: textWorkId } = await res.json();
+        const analyzeRes = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ workId: textWorkId }),
+        });
+        const analyzeData = await analyzeRes.json();
+        setResultItems([{
+          id: textWorkId,
+          name: textContent.trim().slice(0, 40) || "テキスト",
+          status: analyzeData.complianceResult?.overallStatus ?? "warning",
+        }]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
+    } finally {
       setSubmitting(false);
       setProgress(null);
     }
@@ -277,6 +295,60 @@ function SubmitForm() {
     }
     return "処理中...";
   };
+
+  const STATUS_INFO = {
+    ng:      { label: "NG",   cls: "bg-red-500/20 text-red-400 border-red-500/30" },
+    warning: { label: "要注意", cls: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30" },
+    ok:      { label: "OK",   cls: "bg-green-500/20 text-green-400 border-green-500/30" },
+  };
+
+  // 結果サマリー画面
+  if (resultItems.length > 0) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-12">
+        <h1 className="text-3xl font-black mb-2">チェック完了</h1>
+        <p className="text-gray-400 mb-8">{resultItems.length} 件のチェックが完了しました</p>
+
+        <div className="space-y-3 mb-8">
+          {resultItems.map((item) => {
+            const s = STATUS_INFO[item.status];
+            return (
+              <div
+                key={item.id}
+                className="flex items-center gap-4 p-4 rounded-2xl border border-white/10 bg-white/5"
+              >
+                <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-1 rounded-full border ${s.cls}`}>
+                  {s.label}
+                </span>
+                <p className="flex-1 text-sm font-medium truncate">{item.name}</p>
+                <a
+                  href={`/works/${item.id}`}
+                  className="flex-shrink-0 text-sm text-violet-400 hover:text-violet-300 transition-colors whitespace-nowrap"
+                >
+                  詳細を見る →
+                </a>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => { setResultItems([]); setFiles([]); setTextContent(""); setSourceUrl(""); setError(""); }}
+            className="flex-1 py-3 rounded-xl font-semibold border border-white/20 hover:bg-white/5 transition-colors"
+          >
+            新しくチェックする
+          </button>
+          <a
+            href="/works"
+            className="flex-1 py-3 rounded-xl font-semibold text-center bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 transition-all"
+          >
+            チェック履歴へ
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
@@ -374,26 +446,6 @@ function SubmitForm() {
           {selectedProjectId && !showNewProject && (
             <p className="text-xs text-violet-400 mt-1">
               ✓ {projects.find((p) => p.id === selectedProjectId)?.name} に登録されます
-            </p>
-          )}
-        </div>
-
-        {/* Title */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            タイトル・管理名 <span className="text-red-400">*</span>
-          </label>
-          <input
-            type="text"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder="例: ○○サプリ LP 2025年3月版"
-            required
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
-          />
-          {inputMode === "file" && files.length > 1 && (
-            <p className="text-xs text-gray-500 mt-1">
-              複数ファイル時は「タイトル (1/N)」のように自動連番が付きます
             </p>
           )}
         </div>
