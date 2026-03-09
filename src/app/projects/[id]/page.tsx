@@ -41,6 +41,11 @@ export default function ProjectSettingsPage({
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoSaved, setInfoSaved] = useState(false);
 
+  // Google スプレッドシート
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [savingSheet, setSavingSheet] = useState(false);
+  const [sheetSaved, setSheetSaved] = useState(false);
+
   // 企業レギュレーション（テキスト）
   const [companyRegulations, setCompanyRegulations] = useState("");
   const [savingCompanyRegs, setSavingCompanyRegs] = useState(false);
@@ -81,6 +86,7 @@ export default function ProjectSettingsPage({
         setName(data.name);
         setClientName(data.clientName ?? "");
         setDescription(data.description ?? "");
+        setSheetUrl(data.sheetUrl ?? "");
         setCompanyRegulations(data.companyRegulations ?? "");
         setCompanyFileName(data.companyRegulationsFileName ?? null);
         setNgCases(data.ngCases ?? []);
@@ -103,6 +109,20 @@ export default function ProjectSettingsPage({
       setTimeout(() => setInfoSaved(false), 2000);
     }
     setSavingInfo(false);
+  }
+
+  async function saveSheetUrl() {
+    setSavingSheet(true);
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sheetUrl }),
+    });
+    if (res.ok) {
+      setSheetSaved(true);
+      setTimeout(() => setSheetSaved(false), 2000);
+    }
+    setSavingSheet(false);
   }
 
   async function saveCompanyRegulations() {
@@ -323,6 +343,35 @@ export default function ProjectSettingsPage({
             className="mt-4 px-5 py-2 rounded-xl text-sm font-semibold bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
             {infoSaved ? "✓ 保存しました" : savingInfo ? "保存中..." : "保存"}
           </button>
+        </section>
+
+        {/* CR提出用 Google スプレッドシート */}
+        <section className="p-6 rounded-2xl border border-green-500/20 bg-green-500/5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold">CR提出用スプレッドシート</h2>
+              <p className="text-sm text-gray-400 mt-1">この案件のCR提出管理シートのURLを登録します。</p>
+            </div>
+            {sheetUrl && (
+              <a href={sheetUrl} target="_blank" rel="noopener noreferrer"
+                className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-semibold bg-green-600 hover:bg-green-500 transition-colors">
+                シートを開く →
+              </a>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <input
+              type="url"
+              value={sheetUrl}
+              onChange={(e) => setSheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none transition-colors text-sm font-mono"
+            />
+            <button onClick={saveSheetUrl} disabled={savingSheet}
+              className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap">
+              {sheetSaved ? "✓ 保存" : savingSheet ? "保存中..." : "保存"}
+            </button>
+          </div>
         </section>
 
         {/* 企業レギュレーション（テキスト） */}

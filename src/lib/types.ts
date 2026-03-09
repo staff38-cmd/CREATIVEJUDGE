@@ -6,6 +6,8 @@ export interface Project {
   clientName?: string;
   description?: string;
   createdAt: string;
+  // CR提出用Googleスプレッドシート
+  sheetUrl?: string;
   // 企業レギュレーション
   companyRegulations?: string;
   companyRegulationsFileName?: string;
