@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import fs from "fs";
 import { getAllWorks, saveWork, toSummary, getAllProjects } from "@/lib/storage";
-import { Work, ContentType } from "@/lib/types";
+import { Work, ContentType, MediaPlatform, CreativeType } from "@/lib/types";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 
@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
       targetCategory,
       customRegulations,
       projectId,
+      mediaPlatforms,
+      creativeType,
     } = body;
 
     if (!title || !ct) {
@@ -112,6 +114,8 @@ export async function POST(req: NextRequest) {
         targetCategory: targetCategory || undefined,
         customRegulations: customRegulations || undefined,
         projectId: projectId || undefined,
+        mediaPlatforms: Array.isArray(mediaPlatforms) ? mediaPlatforms as MediaPlatform[] : undefined,
+        creativeType: creativeType as CreativeType || undefined,
         submittedAt: new Date().toISOString(),
       };
 
@@ -132,6 +136,8 @@ export async function POST(req: NextRequest) {
       targetCategory: targetCategory || undefined,
       customRegulations: customRegulations || undefined,
       projectId: projectId || undefined,
+      mediaPlatforms: Array.isArray(mediaPlatforms) ? mediaPlatforms as MediaPlatform[] : undefined,
+      creativeType: creativeType as CreativeType || undefined,
       submittedAt: new Date().toISOString(),
     };
 
@@ -147,6 +153,8 @@ export async function POST(req: NextRequest) {
   const targetCategory = formData.get("targetCategory") as string | null;
   const customRegulations = formData.get("customRegulations") as string | null;
   const projectId = formData.get("projectId") as string | null;
+  const mediaPlatformsRaw = formData.get("mediaPlatforms") as string | null;
+  const creativeType = formData.get("creativeType") as string | null;
   const file = formData.get("file") as File | null;
 
   if (!title || !ct || !file) {
@@ -170,6 +178,11 @@ export async function POST(req: NextRequest) {
   const resolvedCt: ContentType =
     ct || (file.type.startsWith("image/") ? "image" : "video");
 
+  let parsedPlatforms: MediaPlatform[] | undefined;
+  if (mediaPlatformsRaw) {
+    try { parsedPlatforms = JSON.parse(mediaPlatformsRaw) as MediaPlatform[]; } catch { /* ignore */ }
+  }
+
   const work: Work = {
     id: uuidv4(),
     title,
@@ -181,6 +194,8 @@ export async function POST(req: NextRequest) {
     targetCategory: targetCategory ?? undefined,
     customRegulations: customRegulations ?? undefined,
     projectId: projectId ?? undefined,
+    mediaPlatforms: parsedPlatforms,
+    creativeType: (creativeType as CreativeType) ?? undefined,
     submittedAt: new Date().toISOString(),
   };
 
