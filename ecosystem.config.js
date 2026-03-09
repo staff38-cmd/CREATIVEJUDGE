@@ -4,7 +4,7 @@ module.exports = {
       name: "creativejudge",
       script: "node_modules/.bin/next",
       args: "start",
-      cwd: "/home/ubuntu/CREATIVEJUDGE",
+      cwd: "/home/ubuntu/app",
       env: {
         NODE_ENV: "production",
         PORT: 3000,
