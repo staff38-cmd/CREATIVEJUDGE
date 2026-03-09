@@ -41,8 +41,8 @@ async function uploadToFilesAPI(filePath: string, mimeType: string, displayName:
   const uploadUrl = initRes.headers.get("x-goog-upload-url");
   if (!uploadUrl) throw new Error("Files API: upload URL が取得できませんでした");
 
-  // 2. ストリームでアップロード（ファイル全体をメモリに展開しない）
-  const fileBuffer = fs.readFileSync(filePath); // node-fetch の body には Buffer が必要
+  // 2. createReadStream でアップロード（readFileSync でファイル全体をメモリに載せない）
+  const fileStream = fs.createReadStream(filePath);
   const uploadRes = await fetch(uploadUrl, {
     method: "POST",
     headers: {
@@ -50,7 +50,9 @@ async function uploadToFilesAPI(filePath: string, mimeType: string, displayName:
       "X-Goog-Upload-Offset": "0",
       "X-Goog-Upload-Command": "upload, finalize",
     },
-    body: fileBuffer,
+    // node-fetch v3 は Node.js Readable を body として受け付ける
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    body: fileStream as any,
     ...(proxyAgent ? { agent: proxyAgent } : {}),
   });
 
