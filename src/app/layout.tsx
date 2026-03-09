@@ -1,17 +1,24 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { verifySessionToken, COOKIE_NAME } from "@/lib/auth";
+import LogoutButton from "@/components/LogoutButton";
 
 export const metadata: Metadata = {
   title: "CREATIVEJUDGE | 広告・クリエイティブ 薬機法チェックシステム",
   description: "薬機法・景品表示法・広告レギュレーションへの適合性をAIが自動チェックするプラットフォーム",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
+  const user = token ? await verifySessionToken(token) : null;
+
   return (
     <html lang="ja">
       <body className="min-h-screen bg-[#0a0a0f] text-white">
@@ -39,6 +46,12 @@ export default function RootLayout({
                 >
                   新規チェック
                 </Link>
+                {user && (
+                  <div className="flex items-center gap-3 pl-3 border-l border-white/10">
+                    <span className="text-xs text-gray-500 max-w-[140px] truncate">{user.email}</span>
+                    <LogoutButton />
+                  </div>
+                )}
               </div>
             </div>
           </div>
