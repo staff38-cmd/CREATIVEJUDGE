@@ -124,6 +124,12 @@ const features = [
     description: "キャッチコピーや広告文をそのまま貼り付けてチェック。",
     href: "/submit?mode=text&type=text",
   },
+  {
+    icon: "✅",
+    title: "チェックリスト",
+    description: "案件×媒体×CR種別に応じたチェックリストで、確認漏れを防止。二重チェック承認フロー対応。",
+    href: "/checklists",
+  },
 ];
 
 const regulations = [

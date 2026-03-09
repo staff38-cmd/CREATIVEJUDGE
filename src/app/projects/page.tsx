@@ -183,7 +183,7 @@ function ProjectCard({
             <p className="text-xs text-gray-500 ml-9 mb-2">{project.description}</p>
           )}
           <div className="flex items-center gap-2 ml-9 mt-2 flex-wrap">
-            {project.regulations && (
+            {project.companyRegulations && (
               <span className="text-xs px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300">
                 レギュレーション設定済み
               </span>

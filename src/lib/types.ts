@@ -95,6 +95,54 @@ export interface Work {
   projectId?: string;           // 所属案件ID
 }
 
+export type MediaType = "Meta" | "Google" | "ByteDance" | "LINE" | "SmartNews";
+export type CrType = "バナー" | "動画" | "TD";
+
+export interface CheckItemDef {
+  id: string;
+  text: string;
+  required: boolean;
+  detail?: string;
+  category: "薬機法" | "景品表示法" | "ステマ規制" | "運用" | "媒体";
+}
+
+export interface CheckResult {
+  itemId: string;
+  status: "ok" | "ng" | "pending";
+  note?: string;
+}
+
+export interface ChecklistSession {
+  id: string;
+  projectId?: string;
+  projectName?: string;
+  media: MediaType;
+  crType: CrType;
+  checkerName: string;
+  reviewerName?: string;
+  checkResults: CheckResult[];
+  status: "draft" | "self-checked" | "review-pending" | "approved" | "rejected";
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChecklistSummary {
+  id: string;
+  projectName?: string;
+  media: MediaType;
+  crType: CrType;
+  checkerName: string;
+  reviewerName?: string;
+  status: ChecklistSession["status"];
+  totalItems: number;
+  okCount: number;
+  ngCount: number;
+  pendingCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface WorkSummary {
   id: string;
   title: string;

@@ -30,6 +30,9 @@ export default function RootLayout({
                 <Link href="/works" className="text-sm text-gray-400 hover:text-white transition-colors">
                   チェック履歴
                 </Link>
+                <Link href="/checklists" className="text-sm text-gray-400 hover:text-white transition-colors">
+                  チェックリスト
+                </Link>
                 <Link
                   href="/submit"
                   className="px-4 py-2 rounded-full text-sm font-semibold bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 transition-all"
