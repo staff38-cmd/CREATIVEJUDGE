@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
+
+// 動画のGeminiアップロード+処理待ちで最大5分かかりうる
+export const maxDuration = 300;
 import path from "path";
 import fetch from "node-fetch";
 import { HttpsProxyAgent } from "https-proxy-agent";
@@ -18,8 +21,8 @@ type GeminiPart =
 
 /** Gemini Files API に動画/PDFをアップロードし、ファイルURIを返す */
 async function uploadToFilesAPI(filePath: string, mimeType: string, displayName: string): Promise<string> {
-  const fileBuffer = fs.readFileSync(filePath);
-  const fileSize = fileBuffer.length;
+  // readSyncでなくstatSyncでサイズだけ取得してメモリを節約
+  const fileSize = fs.statSync(filePath).size;
 
   // 1. Resumable upload を開始
   const initRes = await fetch(GEMINI_UPLOAD_ENDPOINT, {
@@ -38,7 +41,8 @@ async function uploadToFilesAPI(filePath: string, mimeType: string, displayName:
   const uploadUrl = initRes.headers.get("x-goog-upload-url");
   if (!uploadUrl) throw new Error("Files API: upload URL が取得できませんでした");
 
-  // 2. ファイルデータをアップロード
+  // 2. ストリームでアップロード（ファイル全体をメモリに展開しない）
+  const fileBuffer = fs.readFileSync(filePath); // node-fetch の body には Buffer が必要
   const uploadRes = await fetch(uploadUrl, {
     method: "POST",
     headers: {
