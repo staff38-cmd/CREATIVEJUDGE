@@ -104,10 +104,8 @@ export async function POST(req: NextRequest) {
     companyRegulations: project?.companyRegulations,
     companyRegulationsFile: project?.companyRegulationsFileContent,
     companyRegulationsFileName: project?.companyRegulationsFileName,
-    projectRegulations: project?.regulations,
-    projectRegulationsFile: project?.regulationsFileContent,
-    projectRegulationsFileName: project?.regulationsFileName,
     projectNgCases: project?.ngCases,
+    projectAllowedCases: project?.allowedCases,
   };
 
   const parts: GeminiPart[] = [];
@@ -217,10 +215,8 @@ interface BuildPromptOptions {
   companyRegulations?: string;
   companyRegulationsFile?: string;
   companyRegulationsFileName?: string;
-  projectRegulations?: string;
-  projectRegulationsFile?: string;
-  projectRegulationsFileName?: string;
   projectNgCases?: NgCase[];
+  projectAllowedCases?: import("@/lib/types").AllowedCase[];
   textContent?: string;
   extra?: string;
 }
@@ -229,8 +225,7 @@ function buildPrompt(opts: BuildPromptOptions): string {
   const {
     title, contentType, targetCategory, customRegulations,
     companyRegulations, companyRegulationsFile, companyRegulationsFileName,
-    projectRegulations, projectRegulationsFile, projectRegulationsFileName,
-    projectNgCases, textContent, extra,
+    projectNgCases, projectAllowedCases, textContent, extra,
   } = opts;
 
   const categoryNote = targetCategory
@@ -250,15 +245,6 @@ function buildPrompt(opts: BuildPromptOptions): string {
     ? `\n\n【企業レギュレーションファイル${companyRegulationsFileName ? `（${companyRegulationsFileName}）` : ""}】\n${companyRegulationsFile}`
     : "";
 
-  // ── フェーズ③: 案件レギュレーション ──
-  const projectRegsNote = projectRegulations
-    ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n【フェーズ③】案件レギュレーション（企業レギュレーションの次に優先）\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${projectRegulations}`
-    : "";
-
-  const projectRegsFileNote = projectRegulationsFile
-    ? `\n\n【案件レギュレーション・NG一覧ファイル${projectRegulationsFileName ? `（${projectRegulationsFileName}）` : ""}】\n${projectRegulationsFile}`
-    : "";
-
   let ngCasesNote = "";
   if (projectNgCases && projectNgCases.length > 0) {
     const casesList = projectNgCases
@@ -270,7 +256,20 @@ function buildPrompt(opts: BuildPromptOptions): string {
         return parts.join("\n");
       })
       .join("\n\n");
-    ngCasesNote = `\n\n【この案件の過去NG事例（参考にして同様の問題を検出してください）】\n${casesList}`;
+    ngCasesNote = `\n\n【この案件の過去NG事例（同様の問題を検出してください）】\n${casesList}`;
+  }
+
+  let allowedCasesNote = "";
+  if (projectAllowedCases && projectAllowedCases.length > 0) {
+    const casesList = projectAllowedCases
+      .map((c, i) => {
+        const parts = [`${i + 1}. 【${c.title}】`];
+        if (c.quote) parts.push(`   表現例: 「${c.quote}」`);
+        parts.push(`   理由・条件: ${c.description}`);
+        return parts.join("\n");
+      })
+      .join("\n\n");
+    allowedCasesNote = `\n\n【この案件で使用が承認・確認された許容表現（これらはNGと判定しないでください）】\n${casesList}`;
   }
 
   const textSection = textContent
@@ -299,7 +298,7 @@ ${categoryNote}${customNote}${textSection}${extraNote}
 - 景品表示法: 根拠のない「No.1」「最高」等の最上級表現、著しい優良誤認
 - 健康増進法: 著しく事実に相違する誇大表現
 - 医師法・医療法: 医療行為・診断を断言する表現
-- 広告ガイドライン: 根拠のないビフォーアフター、効果の断言${companyRegsNote}${companyRegsFileNote}${projectRegsNote}${projectRegsFileNote}${ngCasesNote}
+- 広告ガイドライン: 根拠のないビフォーアフター、効果の断言${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}
 
 【出力形式】
 以下のJSON形式のみ返してください。余分なテキストは不要です。

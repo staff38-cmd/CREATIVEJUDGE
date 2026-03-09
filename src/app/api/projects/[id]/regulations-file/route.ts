@@ -11,8 +11,6 @@ export async function POST(
     return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
 
-  const type = req.nextUrl.searchParams.get("type") ?? "project"; // "company" | "project"
-
   const { fileName, extractedText } = await req.json() as {
     fileName?: string;
     extractedText?: string;
@@ -22,13 +20,8 @@ export async function POST(
     return NextResponse.json({ error: "ファイル名または内容がありません" }, { status: 400 });
   }
 
-  if (type === "company") {
-    project.companyRegulationsFileName = fileName;
-    project.companyRegulationsFileContent = extractedText;
-  } else {
-    project.regulationsFileName = fileName;
-    project.regulationsFileContent = extractedText;
-  }
+  project.companyRegulationsFileName = fileName;
+  project.companyRegulationsFileContent = extractedText;
   saveProject(project);
 
   return NextResponse.json({
@@ -40,7 +33,7 @@ export async function POST(
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -49,15 +42,8 @@ export async function DELETE(
     return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
 
-  const type = req.nextUrl.searchParams.get("type") ?? "project";
-
-  if (type === "company") {
-    project.companyRegulationsFileName = undefined;
-    project.companyRegulationsFileContent = undefined;
-  } else {
-    project.regulationsFileName = undefined;
-    project.regulationsFileContent = undefined;
-  }
+  project.companyRegulationsFileName = undefined;
+  project.companyRegulationsFileContent = undefined;
   saveProject(project);
 
   return NextResponse.json({ success: true });

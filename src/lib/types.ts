@@ -6,24 +6,30 @@ export interface Project {
   clientName?: string;
   description?: string;
   createdAt: string;
-  // 企業レギュレーション（薬機法チェックの次に優先）
-  companyRegulations?: string;            // 企業共通レギュレーション（手入力）
-  companyRegulationsFileName?: string;    // 企業レギュレーションファイル名
-  companyRegulationsFileContent?: string; // 企業レギュレーションファイル抽出テキスト
-  // 案件レギュレーション（企業の次に優先）
-  regulations?: string;            // 案件固有レギュレーション・禁止表現（手入力）
-  ngCases?: NgCase[];              // 過去のNG事例ナレッジ
-  regulationsFilePath?: string;    // アップロードされたレギュレーションファイルのパス
-  regulationsFileName?: string;    // 元のファイル名
-  regulationsFileContent?: string; // ファイルから抽出したテキスト（AIプロンプト用キャッシュ）
+  // 企業レギュレーション
+  companyRegulations?: string;
+  companyRegulationsFileName?: string;
+  companyRegulationsFileContent?: string;
+  // NG事例ナレッジ
+  ngCases?: NgCase[];
+  // 許容表現ナレッジ
+  allowedCases?: AllowedCase[];
 }
 
 export interface NgCase {
   id: string;
-  title: string;           // NG事例のタイトル
-  description: string;     // 詳細・理由
+  title: string;
+  description: string;
   category?: RegulationCategory;
-  quote?: string;          // 問題のあった具体的な表現
+  quote?: string;
+  addedAt: string;
+}
+
+export interface AllowedCase {
+  id: string;
+  title: string;       // 許容表現のタイトル
+  description: string; // なぜOKか・どんな条件でOKか
+  quote?: string;      // 具体的な表現
   addedAt: string;
 }
 
