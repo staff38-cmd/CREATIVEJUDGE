@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import fs from "fs";
+import { pipeline } from "stream/promises";
+import { Readable } from "stream";
 import { getAllWorks, saveWork, toSummary, getAllProjects } from "@/lib/storage";
 import { Work, ContentType } from "@/lib/types";
 
@@ -167,8 +169,8 @@ export async function POST(req: NextRequest) {
   const fileName = `${uuidv4()}${ext}`;
   const filePath = `/uploads/${fileName}`;
   const fullPath = path.join(UPLOAD_DIR, fileName);
-  const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(fullPath, buffer);
+  const writeStream = fs.createWriteStream(fullPath);
+  await pipeline(Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]), writeStream);
 
   const resolvedCt: ContentType =
     ct || (file.type.startsWith("image/") ? "image" : "video");
