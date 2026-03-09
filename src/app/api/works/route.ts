@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import fs from "fs";
-import { pipeline } from "stream/promises";
 import { Readable } from "stream";
+import Busboy from "busboy";
 import { getAllWorks, saveWork, toSummary, getAllProjects } from "@/lib/storage";
 import { Work, ContentType } from "@/lib/types";
 
@@ -53,6 +53,53 @@ export async function GET() {
         new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
   return NextResponse.json(summaries);
+}
+
+/** busboy でリクエストをストリーミングパースしてファイルをディスクに保存 */
+async function parseMultipartStream(req: NextRequest): Promise<{
+  fields: Record<string, string>;
+  file: { originalName: string; mimeType: string; filePath: string; fullPath: string; size: number } | null;
+}> {
+  ensureUploadDir();
+
+  return new Promise((resolve, reject) => {
+    const contentType = req.headers.get("content-type") ?? "";
+    const bb = Busboy({ headers: { "content-type": contentType }, limits: { fileSize: 600 * 1024 * 1024 } });
+
+    const fields: Record<string, string> = {};
+    let fileResult: { originalName: string; mimeType: string; filePath: string; fullPath: string; size: number } | null = null;
+
+    bb.on("field", (name, val) => {
+      fields[name] = val;
+    });
+
+    bb.on("file", (fieldname, fileStream, info) => {
+      const { filename, mimeType } = info;
+      const ext = path.extname(filename);
+      const fileName = `${uuidv4()}${ext}`;
+      const filePath = `/uploads/${fileName}`;
+      const fullPath = path.join(UPLOAD_DIR, fileName);
+      const writeStream = fs.createWriteStream(fullPath);
+
+      let size = 0;
+      fileStream.on("data", (chunk: Buffer) => { size += chunk.length; });
+      fileStream.pipe(writeStream);
+
+      writeStream.on("finish", () => {
+        fileResult = { originalName: filename, mimeType, filePath, fullPath, size };
+      });
+      writeStream.on("error", reject);
+      fileStream.on("error", reject);
+    });
+
+    bb.on("finish", () => resolve({ fields, file: fileResult }));
+    bb.on("error", reject);
+
+    // Web ReadableStream → Node.js Readable → busboy
+    const nodeStream = Readable.fromWeb(req.body as Parameters<typeof Readable.fromWeb>[0]);
+    nodeStream.pipe(bb);
+    nodeStream.on("error", reject);
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -144,48 +191,46 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ id: work.id }, { status: 201 });
   }
 
-  // File submission (FormData) — 画像・動画のみ
-  ensureUploadDir();
-  const formData = await req.formData();
-  const title = formData.get("title") as string;
-  const ct = formData.get("contentType") as ContentType;
-  const targetCategory = formData.get("targetCategory") as string | null;
-  const customRegulations = formData.get("customRegulations") as string | null;
-  const projectId = formData.get("projectId") as string | null;
-  const file = formData.get("file") as File | null;
+  // File submission (FormData) — busboy でストリーミング保存
+  let parsed: Awaited<ReturnType<typeof parseMultipartStream>>;
+  try {
+    parsed = await parseMultipartStream(req);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "ファイルの受信に失敗しました";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+
+  const { fields, file } = parsed;
+  const title = fields.title;
+  const ct = fields.contentType as ContentType;
 
   if (!title || !ct || !file) {
     return NextResponse.json({ error: "必須フィールドが不足しています" }, { status: 400 });
   }
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  if (!ALLOWED_TYPES.includes(file.mimeType)) {
+    // 不正なファイルを削除
+    fs.unlink(file.fullPath, () => {});
     return NextResponse.json(
       { error: "対応していないファイル形式です（JPEG/PNG/WebP/GIF/MP4/WebM/MOV）" },
       { status: 400 }
     );
   }
 
-  const ext = path.extname(file.name);
-  const fileName = `${uuidv4()}${ext}`;
-  const filePath = `/uploads/${fileName}`;
-  const fullPath = path.join(UPLOAD_DIR, fileName);
-  const writeStream = fs.createWriteStream(fullPath);
-  await pipeline(Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]), writeStream);
-
   const resolvedCt: ContentType =
-    ct || (file.type.startsWith("image/") ? "image" : "video");
+    ct || (file.mimeType.startsWith("image/") ? "image" : "video");
 
   const work: Work = {
     id: uuidv4(),
     title,
     contentType: resolvedCt,
-    fileName: file.name,
-    fileType: file.type,
+    fileName: file.originalName,
+    fileType: file.mimeType,
     fileSize: file.size,
-    filePath,
-    targetCategory: targetCategory ?? undefined,
-    customRegulations: customRegulations ?? undefined,
-    projectId: projectId ?? undefined,
+    filePath: file.filePath,
+    targetCategory: fields.targetCategory || undefined,
+    customRegulations: fields.customRegulations || undefined,
+    projectId: fields.projectId || undefined,
     submittedAt: new Date().toISOString(),
   };
 
