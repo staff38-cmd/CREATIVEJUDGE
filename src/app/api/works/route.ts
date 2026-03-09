@@ -73,6 +73,8 @@ async function parseMultipartStream(req: NextRequest): Promise<{
       fields[name] = val;
     });
 
+    let writePromise: Promise<void> = Promise.resolve();
+
     bb.on("file", (fieldname, fileStream, info) => {
       const { filename, mimeType } = info;
       const ext = path.extname(filename);
@@ -85,14 +87,19 @@ async function parseMultipartStream(req: NextRequest): Promise<{
       fileStream.on("data", (chunk: Buffer) => { size += chunk.length; });
       fileStream.pipe(writeStream);
 
-      writeStream.on("finish", () => {
-        fileResult = { originalName: filename, mimeType, filePath, fullPath, size };
+      writePromise = new Promise<void>((res, rej) => {
+        writeStream.on("finish", () => {
+          fileResult = { originalName: filename, mimeType, filePath, fullPath, size };
+          res();
+        });
+        writeStream.on("error", rej);
+        fileStream.on("error", rej);
       });
-      writeStream.on("error", reject);
-      fileStream.on("error", reject);
     });
 
-    bb.on("finish", () => resolve({ fields, file: fileResult }));
+    bb.on("finish", () => {
+      writePromise.then(() => resolve({ fields, file: fileResult })).catch(reject);
+    });
     bb.on("error", reject);
 
     // Web ReadableStream → Node.js Readable → busboy
