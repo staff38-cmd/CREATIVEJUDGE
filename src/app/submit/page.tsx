@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ContentType, Project } from "@/lib/types";
+import { ContentType, Project, MediaType } from "@/lib/types";
 
 type InputMode = "file" | "text" | "url";
 
@@ -16,6 +16,8 @@ const ALLOWED_TYPES = [
   "video/webm",
   "video/quicktime",
 ];
+
+const MEDIA_OPTIONS: MediaType[] = ["Meta", "Google", "ByteDance", "LINE", "SmartNews"];
 
 const TARGET_CATEGORIES = [
   "化粧品・スキンケア",
@@ -55,6 +57,7 @@ function SubmitForm() {
   const [form, setForm] = useState({
     targetCategory: "",
     customRegulations: "",
+    media: "" as MediaType | "",
   });
   const [textContent, setTextContent] = useState("");
   const [textContentType, setTextContentType] = useState<"text" | "lp">(initialType);
@@ -182,7 +185,7 @@ function SubmitForm() {
           const analyzeRes = await fetch("/api/analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ workId: workIds[i] }),
+            body: JSON.stringify({ workId: workIds[i], media: form.media || undefined }),
           });
           const analyzeData = await analyzeRes.json();
           results.push({
@@ -228,7 +231,7 @@ function SubmitForm() {
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workId: urlWorkId }),
+          body: JSON.stringify({ workId: urlWorkId, media: form.media || undefined }),
         });
         const analyzeData = await analyzeRes.json();
         setResultItems([{
@@ -264,7 +267,7 @@ function SubmitForm() {
         const analyzeRes = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workId: textWorkId }),
+          body: JSON.stringify({ workId: textWorkId, media: form.media || undefined }),
         });
         const analyzeData = await analyzeRes.json();
         setResultItems([{
@@ -469,6 +472,32 @@ function SubmitForm() {
           </select>
           <p className="text-xs text-gray-500 mt-1">
             カテゴリを指定すると、そのカテゴリに特有の規制を重点的にチェックします
+          </p>
+        </div>
+
+        {/* Media Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">
+            媒体 <span className="text-gray-500">（任意）</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {MEDIA_OPTIONS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setForm({ ...form, media: form.media === m ? "" : m })}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors border ${
+                  form.media === m
+                    ? "bg-violet-500 text-white border-violet-500"
+                    : "bg-white/5 text-gray-400 border-white/10 hover:border-violet-500/50 hover:text-white"
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            媒体を選択すると、その媒体のレギュレーションを考慮してチェックします
           </p>
         </div>
 

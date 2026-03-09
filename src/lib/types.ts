@@ -93,9 +93,11 @@ export interface Work {
   customRegulations?: string;   // 追加のレギュレーション指定
   targetCategory?: string;      // 商品カテゴリ（化粧品・サプリ・医薬品等）
   projectId?: string;           // 所属案件ID
+  media?: MediaType;            // 媒体選択
 }
 
 export type MediaType = "Meta" | "Google" | "ByteDance" | "LINE" | "SmartNews";
+export type MediaRegulations = Partial<Record<MediaType, string>>;
 export type CrType = "バナー" | "動画" | "TD";
 
 export interface CheckItemDef {

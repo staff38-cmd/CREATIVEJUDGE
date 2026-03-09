@@ -10,3 +10,32 @@ body {
   color: var(--foreground);
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+/* ライトモードのオーバーライド */
+html.light {
+  color-scheme: light;
+}
+html.light body {
+  background-color: #f0f2f8 !important;
+  color: #1e293b !important;
+}
+html.light nav, html.light [class*="bg-black\/40"], html.light [class*="bg-black/40"] {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+html.light .text-white { color: #0f172a !important; }
+html.light .text-gray-400 { color: #4b5563 !important; }
+html.light .text-gray-500 { color: #6b7280 !important; }
+html.light .text-gray-600 { color: #374151 !important; }
+html.light .text-gray-700 { color: #374151 !important; }
+html.light [class*="bg-white\/5"] { background-color: rgba(0,0,0,0.04) !important; }
+html.light [class*="bg-white\/10"] { background-color: rgba(0,0,0,0.07) !important; }
+html.light [class*="bg-black\/20"] { background-color: rgba(0,0,0,0.05) !important; }
+html.light [class*="border-white\/10"] { border-color: rgba(0,0,0,0.1) !important; }
+html.light [class*="border-white\/20"] { border-color: rgba(0,0,0,0.15) !important; }
+html.light footer {
+  background-color: #e8eaf2 !important;
+  border-color: rgba(0,0,0,0.1) !important;
+}
+html.light footer .text-gray-600 { color: #4b5563 !important; }
+html.light footer .text-gray-700 { color: #6b7280 !important; }

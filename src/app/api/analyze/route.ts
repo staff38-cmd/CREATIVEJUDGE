@@ -3,8 +3,8 @@ import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import { getWork, saveWork, getProject } from "@/lib/storage";
-import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLevel } from "@/lib/types";
+import { getWork, saveWork, getProject, getMediaRegulations } from "@/lib/storage";
+import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLevel, MediaType } from "@/lib/types";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -79,7 +79,7 @@ async function waitForFileActive(resourceName: string, maxWaitMs: number): Promi
 }
 
 export async function POST(req: NextRequest) {
-  const { workId } = await req.json();
+  const { workId, media } = await req.json() as { workId: string; media?: MediaType };
 
   if (!workId) {
     return NextResponse.json({ error: "workId が必要です" }, { status: 400 });
@@ -92,6 +92,19 @@ export async function POST(req: NextRequest) {
 
   // Fetch project knowledge if the work belongs to a project
   const project = work.projectId ? getProject(work.projectId) : null;
+
+  // Fetch media-specific regulations if media is specified
+  const selectedMedia = media || work.media;
+  let mediaRegulationNote: string | undefined;
+  if (selectedMedia) {
+    const allMediaRegs = getMediaRegulations();
+    const reg = allMediaRegs[selectedMedia];
+    if (reg) {
+      mediaRegulationNote = `${selectedMedia}広告ガイドライン準拠でチェック:\n${reg}`;
+    } else {
+      mediaRegulationNote = `${selectedMedia}広告ガイドライン準拠でチェック`;
+    }
+  }
 
   const isImage = work.fileType?.startsWith("image/");
   const isVideo = work.fileType?.startsWith("video/");
@@ -106,6 +119,8 @@ export async function POST(req: NextRequest) {
     companyRegulationsFileName: project?.companyRegulationsFileName,
     projectNgCases: project?.ngCases,
     projectAllowedCases: project?.allowedCases,
+    mediaRegulationNote,
+    selectedMedia,
   };
 
   const parts: GeminiPart[] = [];
@@ -219,6 +234,8 @@ interface BuildPromptOptions {
   projectAllowedCases?: import("@/lib/types").AllowedCase[];
   textContent?: string;
   extra?: string;
+  mediaRegulationNote?: string;
+  selectedMedia?: MediaType;
 }
 
 function buildPrompt(opts: BuildPromptOptions): string {
@@ -226,6 +243,7 @@ function buildPrompt(opts: BuildPromptOptions): string {
     title, contentType, targetCategory, customRegulations,
     companyRegulations, companyRegulationsFile, companyRegulationsFileName,
     projectNgCases, projectAllowedCases, textContent, extra,
+    mediaRegulationNote, selectedMedia,
   } = opts;
 
   const categoryNote = targetCategory
@@ -278,6 +296,10 @@ function buildPrompt(opts: BuildPromptOptions): string {
 
   const extraNote = extra ? `\n【補足】${extra}` : "";
 
+  const mediaNote = mediaRegulationNote
+    ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n【媒体別レギュレーション】${selectedMedia ? `（${selectedMedia}）` : ""}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${mediaRegulationNote}`
+    : "";
+
   return `あなたは日本の広告法規・薬機法・景品表示法に詳しいアシスタントです。
 以下のクリエイティブ素材について、**一次スクリーニング**として問題点を指摘してください。
 最終判断は人間の担当者が行うため、あなたの役割は「見落としを防ぐための気づきの提供」です。
@@ -298,7 +320,7 @@ ${categoryNote}${customNote}${textSection}${extraNote}
 - 景品表示法: 根拠のない「No.1」「最高」等の最上級表現、著しい優良誤認
 - 健康増進法: 著しく事実に相違する誇大表現
 - 医師法・医療法: 医療行為・診断を断言する表現
-- 広告ガイドライン: 根拠のないビフォーアフター、効果の断言${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}
+- 広告ガイドライン: 根拠のないビフォーアフター、効果の断言${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}${mediaNote}
 
 【出力形式】
 以下のJSON形式のみ返してください。余分なテキストは不要です。

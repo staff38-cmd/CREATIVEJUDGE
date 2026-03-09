@@ -1,10 +1,11 @@
 import fs from "fs";
 import path from "path";
-import { Work, WorkSummary, Project, ChecklistSession, ChecklistSummary } from "./types";
+import { Work, WorkSummary, Project, ChecklistSession, ChecklistSummary, MediaRegulations } from "./types";
 
 const DATA_FILE = path.join(process.cwd(), "data", "works.json");
 const PROJECTS_FILE = path.join(process.cwd(), "data", "projects.json");
 const CHECKLISTS_FILE = path.join(process.cwd(), "data", "checklists.json");
+const MEDIA_REGULATIONS_FILE = path.join(process.cwd(), "data", "media-regulations.json");
 
 function ensureDataFile() {
   const dir = path.dirname(DATA_FILE);
@@ -153,6 +154,37 @@ export function toChecklistSummary(session: ChecklistSession): ChecklistSummary 
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
   };
+}
+
+// Media Regulations CRUD
+
+const DEFAULT_MEDIA_REGULATIONS: MediaRegulations = {
+  Meta: "お腹の脂肪系文言+お腹素材の同時使用禁止、ビフォーアフター表現は加工対策必須、広告アカウント名に効果効能表現を使用しない",
+  Google: "医薬品審査フォーム提出必要",
+  ByteDance: "審査精度が高い。他媒体OKでもBDでNG可能性あり。SPC表現は特に注意",
+  LINE: "審査否認理由の問い合わせフローあり",
+  SmartNews: "独自審査基準あり（スマニュー審査基準.pdf参照）",
+};
+
+function ensureMediaRegulationsFile() {
+  const dir = path.dirname(MEDIA_REGULATIONS_FILE);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  if (!fs.existsSync(MEDIA_REGULATIONS_FILE)) {
+    fs.writeFileSync(MEDIA_REGULATIONS_FILE, JSON.stringify(DEFAULT_MEDIA_REGULATIONS, null, 2), "utf-8");
+  }
+}
+
+export function getMediaRegulations(): MediaRegulations {
+  ensureMediaRegulationsFile();
+  const raw = fs.readFileSync(MEDIA_REGULATIONS_FILE, "utf-8");
+  return JSON.parse(raw) as MediaRegulations;
+}
+
+export function saveMediaRegulations(regs: MediaRegulations): void {
+  ensureMediaRegulationsFile();
+  fs.writeFileSync(MEDIA_REGULATIONS_FILE, JSON.stringify(regs, null, 2), "utf-8");
 }
 
 export function toSummary(work: Work, projects?: Project[]): WorkSummary {
