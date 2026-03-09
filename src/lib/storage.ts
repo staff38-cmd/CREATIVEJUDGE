@@ -96,10 +96,16 @@ export function toSummary(work: Work, projects?: Project[]): WorkSummary {
     ? (projects ?? getAllProjects()).find((p) => p.id === work.projectId)
     : undefined;
 
+  const checklist = work.checklist ?? [];
+  const checklistDone =
+    checklist.length > 0 && checklist.every((i) => i.status === "ok");
+
   return {
     id: work.id,
     title: work.title,
     contentType: work.contentType,
+    creativeType: work.creativeType,
+    mediaPlatforms: work.mediaPlatforms,
     fileType: work.fileType,
     filePath: work.filePath,
     sourceUrl: work.sourceUrl,
@@ -112,5 +118,8 @@ export function toSummary(work: Work, projects?: Project[]): WorkSummary {
     targetCategory: work.targetCategory,
     projectId: work.projectId,
     projectName: project?.name,
+    checklistDone,
+    approvalCount: work.approvals?.length ?? 0,
+    finalSubmittedAt: work.finalSubmittedAt,
   };
 }
