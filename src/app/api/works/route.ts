@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import path from "path";
 import fs from "fs";
+import { getAllWorks, saveWork, toSummary, getAllProjects } from "@/lib/storage";
+import { Work, ContentType } from "@/lib/types";
 
 // 大きな動画ファイルのアップロード受信に対応
 export const maxDuration = 300;
-import { getAllWorks, saveWork, toSummary, getAllProjects } from "@/lib/storage";
-import { Work, ContentType } from "@/lib/types";
 
 const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads");
 

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
-
-// 動画のGeminiアップロード+処理待ちで最大5分かかりうる
-export const maxDuration = 300;
 import path from "path";
 import fetch from "node-fetch";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { getWork, saveWork, getProject, getMediaRegulations } from "@/lib/storage";
 import { ComplianceIssue, ComplianceResult, NgCase, RegulationCategory, RiskLevel, MediaType } from "@/lib/types";
+
+// 動画のGeminiアップロード+処理待ちで最大5分かかりうる
+export const maxDuration = 300;
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
