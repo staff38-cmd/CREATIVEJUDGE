@@ -61,6 +61,8 @@ function SubmitForm() {
   });
   const [textContent, setTextContent] = useState("");
   const [textContentType, setTextContentType] = useState<"text" | "lp">(initialType);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [bulkText, setBulkText] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
 
   // 複数ファイル対応
@@ -241,40 +243,57 @@ function SubmitForm() {
         }]);
 
       } else {
-        // テキストモード
-        if (!textContent.trim()) {
+        // テキストモード（単体 or 一括）
+        const lines = bulkMode
+          ? bulkText.split("\n").map((l) => l.trim()).filter((l) => l.length > 0)
+          : textContent.trim() ? [textContent.trim()] : [];
+
+        if (lines.length === 0) {
           setError("チェックするテキストを入力してください");
           setSubmitting(false);
           return;
         }
-        const res = await fetch("/api/works", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: textContent.trim().slice(0, 40) || "テキスト",
-            textContent,
-            contentType: textContentType,
-            targetCategory: form.targetCategory,
-            customRegulations: form.customRegulations,
-            projectId: selectedProjectId || undefined,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "登録に失敗しました");
+
+        const workIds: string[] = [];
+        for (let i = 0; i < lines.length; i++) {
+          setProgress({ done: i, total: lines.length * 2 });
+          const res = await fetch("/api/works", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: lines[i].slice(0, 40) || "テキスト",
+              textContent: lines[i],
+              contentType: textContentType,
+              targetCategory: form.targetCategory,
+              customRegulations: form.customRegulations,
+              projectId: selectedProjectId || undefined,
+            }),
+          });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || "登録に失敗しました");
+          }
+          const { id } = await res.json();
+          workIds.push(id);
         }
-        const { id: textWorkId } = await res.json();
-        const analyzeRes = await fetch("/api/analyze", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ workId: textWorkId, media: form.media || undefined }),
-        });
-        const analyzeData = await analyzeRes.json();
-        setResultItems([{
-          id: textWorkId,
-          name: textContent.trim().slice(0, 40) || "テキスト",
-          status: analyzeData.complianceResult?.overallStatus ?? "warning",
-        }]);
+
+        const results: ResultItem[] = [];
+        for (let i = 0; i < workIds.length; i++) {
+          setProgress({ done: lines.length + i, total: lines.length * 2 });
+          const analyzeRes = await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ workId: workIds[i], media: form.media || undefined }),
+          });
+          const analyzeData = await analyzeRes.json();
+          results.push({
+            id: workIds[i],
+            name: lines[i],
+            status: analyzeData.complianceResult?.overallStatus ?? "warning",
+          });
+        }
+        setProgress({ done: lines.length * 2, total: lines.length * 2 });
+        setResultItems(results);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "登録に失敗しました");
@@ -288,6 +307,10 @@ function SubmitForm() {
     if (!submitting) {
       if (inputMode === "file" && files.length > 1) return `${files.length}件を登録してAIチェック`;
       if (inputMode === "url") return "URLを取得してAIチェックへ";
+      if (inputMode === "text" && bulkMode) {
+        const count = bulkText.split("\n").filter((l) => l.trim()).length;
+        return count > 0 ? `${count}件を一括AIチェック` : "一括AIチェック";
+      }
       return "登録してAIチェックへ";
     }
     if (progress) {
@@ -337,7 +360,7 @@ function SubmitForm() {
 
         <div className="flex gap-3">
           <button
-            onClick={() => { setResultItems([]); setFiles([]); setTextContent(""); setSourceUrl(""); setError(""); }}
+            onClick={() => { setResultItems([]); setFiles([]); setTextContent(""); setBulkText(""); setSourceUrl(""); setError(""); }}
             className="flex-1 py-3 rounded-xl font-semibold border border-white/20 hover:bg-white/5 transition-colors"
           >
             新しくチェックする
@@ -596,7 +619,7 @@ function SubmitForm() {
 
         ) : (
           <div>
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-3 mb-3 flex-wrap">
               <label className="block text-sm font-medium text-gray-300">
                 コンテンツ種別 <span className="text-red-400">*</span>
               </label>
@@ -616,19 +639,54 @@ function SubmitForm() {
                   </button>
                 ))}
               </div>
+              {/* 一括モードトグル（テキスト広告のみ） */}
+              {textContentType === "text" && (
+                <button
+                  type="button"
+                  onClick={() => setBulkMode((v) => !v)}
+                  className={`ml-auto px-3 py-1 rounded-full text-xs font-bold border transition-colors ${
+                    bulkMode
+                      ? "bg-orange-500/20 text-orange-300 border-orange-500/40"
+                      : "bg-white/5 text-gray-400 border-white/10 hover:border-orange-500/40 hover:text-orange-300"
+                  }`}
+                >
+                  {bulkMode ? "✓ 一括モード" : "一括モード"}
+                </button>
+              )}
             </div>
-            <textarea
-              value={textContent}
-              onChange={(e) => setTextContent(e.target.value)}
-              placeholder={
-                textContentType === "lp"
-                  ? "LPのテキスト内容を貼り付けてください（見出し・本文・キャッチコピーなど）"
-                  : "広告テキスト・原稿・キャッチコピーなどを貼り付けてください"
-              }
-              rows={12}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors resize-none font-mono text-sm"
-            />
-            <p className="text-xs text-gray-500 mt-1">{textContent.length} 文字</p>
+
+            {bulkMode && textContentType === "text" ? (
+              <>
+                <div className="mb-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-xs text-orange-300">
+                  <strong>1行につき1件</strong>でチェックします。改行で区切って複数のテキストCRを貼り付けてください。
+                </div>
+                <textarea
+                  value={bulkText}
+                  onChange={(e) => setBulkText(e.target.value)}
+                  placeholder={"例:\n若々しい肌へ導く美容液\nコシのある髪に\n毎朝スッキリ目覚める\n飲むだけで簡単ダイエット"}
+                  rows={14}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500 transition-colors resize-none font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {bulkText.split("\n").filter((l) => l.trim()).length} 件
+                </p>
+              </>
+            ) : (
+              <>
+                <textarea
+                  value={textContent}
+                  onChange={(e) => setTextContent(e.target.value)}
+                  placeholder={
+                    textContentType === "lp"
+                      ? "LPのテキスト内容を貼り付けてください（見出し・本文・キャッチコピーなど）"
+                      : "広告テキスト・原稿・キャッチコピーなどを貼り付けてください"
+                  }
+                  rows={12}
+                  className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors resize-none font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">{textContent.length} 文字</p>
+              </>
+            )}
           </div>
         )}
 
