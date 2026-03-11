@@ -222,10 +222,60 @@ export async function POST(req: NextRequest) {
 
   const complianceResult = parseResponse(responseText);
 
+  // テキストコンテンツがある場合、過去NG事例のquoteと直接照合して確実に検出
+  if (work.textContent && project?.ngCases && project.ngCases.length > 0) {
+    const directMatches = detectNgMatches(work.textContent, project.ngCases);
+    if (directMatches.length > 0) {
+      // AIが既に同じquoteを検出していない場合のみ追加
+      const existingQuotes = new Set(
+        complianceResult.issues.map((i) => i.quote?.trim()).filter(Boolean)
+      );
+      const newIssues = directMatches.filter(
+        (m) => !existingQuotes.has(m.quote?.trim())
+      );
+      if (newIssues.length > 0) {
+        complianceResult.issues = [...newIssues, ...complianceResult.issues];
+        // violationが追加された場合はoverallStatusを更新
+        if (complianceResult.overallStatus !== "ng") {
+          complianceResult.overallStatus = "ng";
+        }
+      }
+    }
+  }
+
   work.complianceResult = complianceResult;
   saveWork(work);
 
   return NextResponse.json({ complianceResult });
+}
+
+/** 過去NG事例のquoteとテキストを直接照合してissueを生成する */
+function detectNgMatches(textContent: string, ngCases: NgCase[]): ComplianceIssue[] {
+  const issues: ComplianceIssue[] = [];
+  const seen = new Set<string>();
+
+  for (const ngCase of ngCases) {
+    const quote = ngCase.quote?.trim();
+    if (!quote || quote.length < 2) continue;
+    if (seen.has(quote)) continue;
+
+    if (textContent.includes(quote)) {
+      seen.add(quote);
+      // タイトルから [テキスト] / [画像] などのプレフィックスを除去
+      const cleanTitle = ngCase.title.replace(/^\[.*?\]\s*/, "").slice(0, 30);
+      issues.push({
+        level: "violation",
+        category: ngCase.category ?? "カスタム",
+        clause: "過去NG事例（直接照合）",
+        title: cleanTitle || "NG表現検出",
+        description: `過去NG事例との照合で検出されました。${ngCase.description ? `\n${ngCase.description}` : ""}`,
+        quote,
+        suggestion: "該当表現を除去または修正してください。",
+      });
+    }
+  }
+
+  return issues;
 }
 
 interface BuildPromptOptions {
