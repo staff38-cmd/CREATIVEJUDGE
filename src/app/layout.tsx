@@ -37,6 +37,9 @@ export default async function RootLayout({
                   <ThemeToggle />
                 </div>
                 <div className="flex items-center gap-6">
+                  <Link href="/dashboard" className="text-sm text-gray-400 hover:text-white transition-colors">
+                    ダッシュボード
+                  </Link>
                   <Link href="/projects" className="text-sm text-gray-400 hover:text-white transition-colors">
                     案件
                   </Link>
