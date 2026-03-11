@@ -1,40 +1,41 @@
-
-name: Deploy to Lightsail
+name: Build & Deploy
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd ~/app
-            git pull origin main
-            npm install
-            npm run build
-            pm2 restart ecosystem.config.js
+      - uses: actions/checkout@v4
 
-            # Nginx の upload size 上限を更新（初回・毎回冪等に適用）
-            if command -v nginx >/dev/null 2>&1; then
-              CONF=""
-              [ -f /etc/nginx/sites-enabled/default ] && CONF="/etc/nginx/sites-enabled/default"
-              [ -z "$CONF" ] && [ -f /etc/nginx/conf.d/default.conf ] && CONF="/etc/nginx/conf.d/default.conf"
-              if [ -n "$CONF" ]; then
-                if grep -q "client_max_body_size" "$CONF"; then
-                  sudo sed -i 's/client_max_body_size[^;]*;/client_max_body_size 600M;/g' "$CONF"
-                else
-                  sudo sed -i '/listen 80/a\    client_max_body_size 600M;' "$CONF"
-                fi
-                sudo nginx -t && sudo nginx -s reload
-              fi
-            fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync built files to server
+        run: |
+          rsync -az --delete .next/ ubuntu@${{ secrets.SERVER_HOST }}:~/app/.next/
+          rsync -az package.json package-lock.json ubuntu@${{ secrets.SERVER_HOST }}:~/app/
+
+      - name: Install runtime deps & restart pm2
+        run: |
+          ssh ubuntu@${{ secrets.SERVER_HOST }} "cd ~/app && npm ci --omit=dev --prefer-offline && pm2 restart all --update-env"
