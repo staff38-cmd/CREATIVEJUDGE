@@ -41,10 +41,18 @@ export default function ProjectSettingsPage({
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoSaved, setInfoSaved] = useState(false);
 
-  // Google スプレッドシート
+  // CR提出用 Google スプレッドシート
   const [sheetUrl, setSheetUrl] = useState("");
   const [savingSheet, setSavingSheet] = useState(false);
   const [sheetSaved, setSheetSaved] = useState(false);
+
+  // NG集スプレッドシート同期
+  const [ngSheetUrl, setNgSheetUrl] = useState("");
+  const [savingNgSheet, setSavingNgSheet] = useState(false);
+  const [ngSheetSaved, setNgSheetSaved] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ imported: number; total: number; message: string } | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // 企業レギュレーション（テキスト）
   const [companyRegulations, setCompanyRegulations] = useState("");
@@ -87,6 +95,7 @@ export default function ProjectSettingsPage({
         setClientName(data.clientName ?? "");
         setDescription(data.description ?? "");
         setSheetUrl(data.sheetUrl ?? "");
+        setNgSheetUrl(data.ngSheetUrl ?? "");
         setCompanyRegulations(data.companyRegulations ?? "");
         setCompanyFileName(data.companyRegulationsFileName ?? null);
         setNgCases(data.ngCases ?? []);
@@ -123,6 +132,46 @@ export default function ProjectSettingsPage({
       setTimeout(() => setSheetSaved(false), 2000);
     }
     setSavingSheet(false);
+  }
+
+  async function saveNgSheetUrl() {
+    setSavingNgSheet(true);
+    const res = await fetch(`/api/projects/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ngSheetUrl }),
+    });
+    if (res.ok) {
+      setNgSheetSaved(true);
+      setTimeout(() => setNgSheetSaved(false), 2000);
+    }
+    setSavingNgSheet(false);
+  }
+
+  async function syncNgSheet() {
+    setSyncing(true);
+    setSyncResult(null);
+    setSyncError(null);
+    try {
+      const res = await fetch(`/api/projects/${id}/sheets-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ngSheetUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncError(data.error ?? "同期に失敗しました");
+      } else {
+        setSyncResult({ imported: data.imported, total: data.total, message: data.message });
+        // NG事例一覧を再取得
+        const proj = await fetch(`/api/projects/${id}`).then((r) => r.json());
+        setNgCases(proj.ngCases ?? []);
+        if (ngSheetUrl) setNgSheetUrl(ngSheetUrl);
+      }
+    } catch {
+      setSyncError("ネットワークエラーが発生しました");
+    }
+    setSyncing(false);
   }
 
   async function saveCompanyRegulations() {
@@ -372,6 +421,57 @@ export default function ProjectSettingsPage({
               {sheetSaved ? "✓ 保存" : savingSheet ? "保存中..." : "保存"}
             </button>
           </div>
+        </section>
+
+        {/* NG集スプレッドシート同期 */}
+        <section className="p-6 rounded-2xl border border-red-500/20 bg-red-500/5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-bold">NG集シート同期</h2>
+              <p className="text-sm text-gray-400 mt-1">
+                過去のNG事例を記録したスプレッドシートから自動インポート。
+                タブ名に「テキスト」「画像」「動画」が含まれるシートを読み取ります（ヘッダー3行目）。
+              </p>
+            </div>
+            <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">AI参照</span>
+          </div>
+          <div className="flex gap-2 mb-3">
+            <input
+              type="url"
+              value={ngSheetUrl}
+              onChange={(e) => setNgSheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none transition-colors text-sm font-mono"
+            />
+            <button
+              onClick={saveNgSheetUrl}
+              disabled={savingNgSheet}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold bg-white/10 hover:bg-white/15 disabled:opacity-50 transition-colors whitespace-nowrap"
+            >
+              {ngSheetSaved ? "✓ 保存" : savingNgSheet ? "保存中..." : "URL保存"}
+            </button>
+          </div>
+          <button
+            onClick={syncNgSheet}
+            disabled={syncing || !ngSheetUrl.trim()}
+            className="w-full py-3 rounded-xl text-sm font-semibold bg-red-500/70 hover:bg-red-500/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+          >
+            {syncing ? (
+              <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />シートから取り込み中...</>
+            ) : (
+              "🔄 NG集シートからNG事例を取り込む"
+            )}
+          </button>
+          {syncResult && (
+            <div className="mt-3 p-3 rounded-xl bg-green-500/10 border border-green-500/30 text-sm text-green-300">
+              ✓ {syncResult.message}
+            </div>
+          )}
+          {syncError && (
+            <div className="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300">
+              ⚠ {syncError}
+            </div>
+          )}
         </section>
 
         {/* 企業レギュレーション（テキスト） */}

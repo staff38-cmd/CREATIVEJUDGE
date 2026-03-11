@@ -8,6 +8,8 @@ export interface Project {
   createdAt: string;
   // CR提出用Googleスプレッドシート
   sheetUrl?: string;
+  // NG集スプレッドシート（シート同期用）
+  ngSheetUrl?: string;
   // 企業レギュレーション
   companyRegulations?: string;
   companyRegulationsFileName?: string;

@@ -24,7 +24,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { name, clientName, description, companyRegulations, ngCases, allowedCases, sheetUrl } = body;
+  const { name, clientName, description, companyRegulations, ngCases, allowedCases, sheetUrl, ngSheetUrl } = body;
 
   if (name !== undefined) project.name = name.trim();
   if (clientName !== undefined) project.clientName = clientName?.trim() || undefined;
@@ -33,6 +33,7 @@ export async function PATCH(
   if (ngCases !== undefined) project.ngCases = ngCases;
   if (allowedCases !== undefined) project.allowedCases = allowedCases;
   if (sheetUrl !== undefined) project.sheetUrl = sheetUrl?.trim() || undefined;
+  if (ngSheetUrl !== undefined) project.ngSheetUrl = ngSheetUrl?.trim() || undefined;
 
   saveProject(project);
   return NextResponse.json(project);
