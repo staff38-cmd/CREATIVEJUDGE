@@ -29,13 +29,13 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
       - name: Sync built files to server
         run: |
-          rsync -az --delete .next/ ubuntu@${{ secrets.SERVER_HOST }}:~/app/.next/
-          rsync -az package.json package-lock.json ubuntu@${{ secrets.SERVER_HOST }}:~/app/
+          rsync -az --delete .next/ ubuntu@${{ secrets.SERVER_IP }}:~/app/.next/
+          rsync -az package.json package-lock.json ubuntu@${{ secrets.SERVER_IP }}:~/app/
 
       - name: Install runtime deps & restart pm2
         run: |
-          ssh ubuntu@${{ secrets.SERVER_HOST }} "cd ~/app && npm ci --omit=dev --prefer-offline && pm2 restart all --update-env"
+          ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/app && npm ci --omit=dev --prefer-offline && pm2 restart all --update-env"
