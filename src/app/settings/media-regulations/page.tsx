@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { MediaType, MediaRegulations } from "@/lib/types";
 
-const MEDIA_LIST: MediaType[] = ["Meta", "Google", "ByteDance", "LINE", "SmartNews"];
+const MEDIA_LIST: MediaType[] = ["Meta", "Google", "ByteDance", "LINE", "SmartNews", "YDA"];
 
 const MEDIA_DESCRIPTIONS: Record<MediaType, string> = {
   Meta: "Meta（Facebook/Instagram）広告のレギュレーション",
@@ -11,6 +11,7 @@ const MEDIA_DESCRIPTIONS: Record<MediaType, string> = {
   ByteDance: "TikTok（ByteDance）広告のレギュレーション",
   LINE: "LINE広告のレギュレーション",
   SmartNews: "SmartNews広告のレギュレーション",
+  YDA: "Yahoo!ディスプレイ広告（YDA）のレギュレーション",
 };
 
 export default function MediaRegulationsPage() {

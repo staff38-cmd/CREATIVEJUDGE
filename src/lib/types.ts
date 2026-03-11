@@ -98,7 +98,7 @@ export interface Work {
   media?: MediaType;            // 媒体選択
 }
 
-export type MediaType = "Meta" | "Google" | "ByteDance" | "LINE" | "SmartNews";
+export type MediaType = "Meta" | "Google" | "ByteDance" | "LINE" | "SmartNews" | "YDA";
 export type MediaRegulations = Partial<Record<MediaType, string>>;
 export type CrType = "バナー" | "動画" | "TD";
 

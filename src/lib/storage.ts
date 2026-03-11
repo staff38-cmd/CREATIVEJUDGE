@@ -164,6 +164,7 @@ const DEFAULT_MEDIA_REGULATIONS: MediaRegulations = {
   ByteDance: "審査精度が高い。他媒体OKでもBDでNG可能性あり。SPC表現は特に注意",
   LINE: "審査否認理由の問い合わせフローあり",
   SmartNews: "独自審査基準あり（スマニュー審査基準.pdf参照）",
+  YDA: "Yahoo!ディスプレイ広告（YDA）審査基準準拠。薬機法・景品表示法の遵守必須",
 };
 
 function ensureMediaRegulationsFile() {

@@ -233,6 +233,15 @@ export function getChecklistItems(crType: CrType, media: MediaType): CheckItemDe
     case "SmartNews":
       items.push(...smartnewsItems);
       break;
+    case "YDA":
+      items.push({
+        id: "yda-001",
+        text: "YDA（Yahoo!ディスプレイ広告）の審査基準を確認し、掲載可能な表現であることを確認した",
+        required: true,
+        detail: "YDA：薬機法・景品表示法の遵守に加え、Yahoo!独自の表現規制に注意",
+        category: "媒体",
+      });
+      break;
   }
 
   return items;

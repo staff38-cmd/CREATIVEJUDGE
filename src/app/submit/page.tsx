@@ -17,7 +17,7 @@ const ALLOWED_TYPES = [
   "video/quicktime",
 ];
 
-const MEDIA_OPTIONS: MediaType[] = ["Meta", "Google", "ByteDance", "LINE", "SmartNews"];
+const MEDIA_OPTIONS: MediaType[] = ["Meta", "Google", "ByteDance", "LINE", "SmartNews", "YDA"];
 
 const TARGET_CATEGORIES = [
   "化粧品・スキンケア",
