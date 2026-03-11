@@ -102,7 +102,7 @@ export interface Work {
 
 export type MediaType = "Meta" | "Google" | "ByteDance" | "LINE" | "SmartNews" | "YDA";
 export type MediaRegulations = Partial<Record<MediaType, string>>;
-export type CrType = "バナー" | "動画" | "TD";
+export type CrType = "バナー" | "動画" | "TD" | "入稿";
 
 export interface CheckItemDef {
   id: string;

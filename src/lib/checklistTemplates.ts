@@ -32,6 +32,31 @@ const commonItems: CheckItemDef[] = [
   },
 ];
 
+// ===== 入稿時チェック項目（全CR種別共通） =====
+export const submissionCheckItems: CheckItemDef[] = [
+  {
+    id: "submit-001",
+    text: "広告のリンク先URL（遷移先LP）と、バナー・テキストで訴求している商品・内容が一致している",
+    required: true,
+    detail: "例：商品Aのバナーなのに遷移先が商品BのLPになっていないか。必ずリンク先を実際にクリックして確認すること",
+    category: "運用",
+  },
+  {
+    id: "submit-002",
+    text: "AD Ebis（広告管理ツール）の広告ID備考欄に、遷移先LPの内容・商品名を明記した",
+    required: true,
+    detail: "入稿時に必ずAD Ebisの備考欄に「〇〇商品 × 〇〇LP」等、遷移先の内容を明記すること",
+    category: "運用",
+  },
+  {
+    id: "submit-003",
+    text: "ダブルチェック者の記名が完了している",
+    required: true,
+    detail: "入稿前に必ず別担当者がリンク先・内容の整合性を確認し、記名すること",
+    category: "運用",
+  },
+];
+
 // ===== バナー専用項目 =====
 const bannerItems: CheckItemDef[] = [
   {
@@ -201,6 +226,11 @@ const smartnewsItems: CheckItemDef[] = [
  * CR種別×媒体の組み合わせに応じたチェック項目一覧を返す
  */
 export function getChecklistItems(crType: CrType, media: MediaType): CheckItemDef[] {
+  // 入稿チェックは専用項目のみ
+  if (crType === "入稿") {
+    return [...submissionCheckItems];
+  }
+
   const items: CheckItemDef[] = [...commonItems];
 
   // CR種別別の追加項目

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { MediaType, CrType, Project } from "@/lib/types";
 
 const MEDIA_OPTIONS: MediaType[] = ["Meta", "Google", "ByteDance", "LINE", "SmartNews", "YDA"];
-const CR_TYPE_OPTIONS: CrType[] = ["バナー", "動画", "TD"];
+const CR_TYPE_OPTIONS: CrType[] = ["バナー", "動画", "TD", "入稿"];
 
 export default function NewChecklistPage() {
   const router = useRouter();
