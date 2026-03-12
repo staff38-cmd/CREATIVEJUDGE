@@ -60,6 +60,7 @@ export type RegulationCategory =
   | "健康増進法"
   | "広告ガイドライン"
   | "医師法"
+  | "社内レギュレーション"
   | "カスタム";
 
 export interface ComplianceIssue {
