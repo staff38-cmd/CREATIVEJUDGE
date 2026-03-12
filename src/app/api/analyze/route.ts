@@ -128,6 +128,8 @@ export async function POST(req: NextRequest) {
     companyRegulations: mergedRegulations,
     companyRegulationsFile: project?.companyRegulationsFileContent,
     companyRegulationsFileName: project?.companyRegulationsFileName,
+    productDetails: project?.productDetails,
+    productDetailsFileName: project?.productDetailsFileName,
     projectNgCases: project?.ngCases,
     projectAllowedCases: project?.allowedCases,
     mediaRegulationNote,
@@ -292,6 +294,8 @@ interface BuildPromptOptions {
   companyRegulations?: string;
   companyRegulationsFile?: string;
   companyRegulationsFileName?: string;
+  productDetails?: string;
+  productDetailsFileName?: string;
   projectNgCases?: NgCase[];
   projectAllowedCases?: import("@/lib/types").AllowedCase[];
   textContent?: string;
@@ -305,6 +309,7 @@ function buildPrompt(opts: BuildPromptOptions): string {
   const {
     title, contentType, targetCategory, customRegulations,
     companyRegulations, companyRegulationsFile, companyRegulationsFileName,
+    productDetails, productDetailsFileName,
     projectNgCases, projectAllowedCases, textContent, extra,
     mediaRegulationNote, selectedMedia, checkMode,
   } = opts;
@@ -315,6 +320,11 @@ function buildPrompt(opts: BuildPromptOptions): string {
 
   const customNote = customRegulations
     ? `\n追加チェック項目（このコンテンツ専用）:\n${customRegulations}`
+    : "";
+
+  // ── 商品詳細資料 ──
+  const productDetailsNote = productDetails
+    ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n【商品・サービス詳細資料${productDetailsFileName ? `（${productDetailsFileName}）` : ""}】\nこの商材の特性・成分・効能・使用方法などを示す資料です。審査判断の前提として必ず参照してください。\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${productDetails}`
     : "";
 
   // ── フェーズ②: 企業レギュレーション ──
@@ -385,7 +395,7 @@ ${modeInstruction}
 【チェック対象】
 タイトル: ${title}
 コンテンツ種別: ${contentType}
-${categoryNote}${customNote}${textSection}${extraNote}${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}${mediaNote}
+${categoryNote}${customNote}${productDetailsNote}${textSection}${extraNote}${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}${mediaNote}
 
 【出力形式】
 以下のJSON形式のみ返してください。余分なテキストは不要です。

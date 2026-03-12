@@ -54,6 +54,8 @@ model Project {
   companyRegulations             String?  @db.Text
   companyRegulationsFileName     String?
   companyRegulationsFileContent  String?  @db.Text
+  productDetails                 String?  @db.Text
+  productDetailsFileName         String?
   ngCases                       Json     @default("[]")
   allowedCases                  Json     @default("[]")
   checkMode                     String   @default("soft")

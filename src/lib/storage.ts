@@ -48,6 +48,8 @@ function toProject(row: PrismaProject): Project {
     createdAt: row.createdAt,
     sheetUrl: row.sheetUrl ?? undefined,
     ngSheetUrl: row.ngSheetUrl ?? undefined,
+    productDetails: (row as unknown as { productDetails?: string | null }).productDetails ?? undefined,
+    productDetailsFileName: (row as unknown as { productDetailsFileName?: string | null }).productDetailsFileName ?? undefined,
     companyRegulations: row.companyRegulations ?? undefined,
     companyRegulationsFileName: row.companyRegulationsFileName ?? undefined,
     companyRegulationsFileContent: row.companyRegulationsFileContent ?? undefined,
@@ -160,7 +162,13 @@ export async function saveProject(project: Project): Promise<void> {
     ngCases: (project.ngCases ?? []) as unknown as object[],
     allowedCases: (project.allowedCases ?? []) as unknown as object[],
   };
-  const dataWithMode = { ...data, checkMode: project.checkMode ?? "soft", clientId: project.clientId ?? null };
+  const dataWithMode = {
+    ...data,
+    checkMode: project.checkMode ?? "soft",
+    clientId: project.clientId ?? null,
+    productDetails: project.productDetails ?? null,
+    productDetailsFileName: project.productDetailsFileName ?? null,
+  };
   await prisma.project.upsert({
     where: { id: project.id },
     create: { id: project.id, ...dataWithMode },

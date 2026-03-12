@@ -17,6 +17,9 @@ export interface Project {
   sheetUrl?: string;
   // NG集スプレッドシート（シート同期用）
   ngSheetUrl?: string;
+  // 商品詳細資料
+  productDetails?: string;
+  productDetailsFileName?: string;
   // 企業レギュレーション
   companyRegulations?: string;
   companyRegulationsFileName?: string;

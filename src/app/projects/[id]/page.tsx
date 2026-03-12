@@ -56,6 +56,12 @@ export default function ProjectSettingsPage({
   const [syncResult, setSyncResult] = useState<{ imported: number; total: number; message: string } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
+  // 商品詳細資料
+  const [productFileName, setProductFileName] = useState<string | null>(null);
+  const [uploadingProduct, setUploadingProduct] = useState(false);
+  const [productUploadResult, setProductUploadResult] = useState<{ extractedLength: number; preview: string } | null>(null);
+  const [productFileError, setProductFileError] = useState<string | null>(null);
+
   // 企業レギュレーション（ファイル）
   const [companyFileName, setCompanyFileName] = useState<string | null>(null);
   const [uploadingCompanyFile, setUploadingCompanyFile] = useState(false);
@@ -94,6 +100,7 @@ export default function ProjectSettingsPage({
       setDescription(data.description ?? "");
       setSheetUrl(data.sheetUrl ?? "");
       setNgSheetUrl(data.ngSheetUrl ?? "");
+      setProductFileName(data.productDetailsFileName ?? null);
       setCompanyFileName(data.companyRegulationsFileName ?? null);
       setCheckMode(data.checkMode ?? "soft");
       setNgCases(data.ngCases ?? []);
@@ -170,6 +177,66 @@ export default function ProjectSettingsPage({
       setSyncError("ネットワークエラーが発生しました");
     }
     setSyncing(false);
+  }
+
+  async function uploadProductFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setProductFileError(null);
+    setUploadingProduct(true);
+    setProductUploadResult(null);
+    try {
+      let extractedText = "";
+      if (file.name.endsWith(".txt")) {
+        extractedText = await file.text();
+      } else {
+        const XLSX = await import("xlsx");
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        const lines: string[] = [];
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, defval: "" });
+          if (workbook.SheetNames.length > 1) lines.push(`【シート: ${sheetName}】`);
+          for (const row of rows) {
+            const cells = (row as string[]).map((c) => String(c ?? "").trim());
+            if (cells.every((c) => c === "")) continue;
+            const colA = cells[0] ?? "";
+            const colB = cells[1] ?? "";
+            const colC = cells[2] ?? "";
+            if (colA && !colB && !colC) { lines.push(`\n[${colA}]`); continue; }
+            const main = colB || colA;
+            if (!main) continue;
+            lines.push(`・${main}${colC ? `（${colC}）` : ""}`);
+          }
+        }
+        extractedText = lines.join("\n").trim();
+      }
+      const res = await fetch(`/api/projects/${id}/product-details`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, extractedText }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProductFileName(file.name);
+        setProductUploadResult({ extractedLength: data.extractedLength, preview: data.preview });
+      } else {
+        setProductFileError("アップロードに失敗しました");
+      }
+    } catch {
+      setProductFileError("ファイルの解析に失敗しました");
+    }
+    setUploadingProduct(false);
+    e.target.value = "";
+  }
+
+  async function deleteProductFile() {
+    const res = await fetch(`/api/projects/${id}/product-details`, { method: "DELETE" });
+    if (res.ok) {
+      setProductFileName(null);
+      setProductUploadResult(null);
+    }
   }
 
   async function uploadRegulationsFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -412,6 +479,67 @@ export default function ProjectSettingsPage({
             className="mt-4 px-5 py-2 rounded-xl text-sm font-semibold bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
             {infoSaved ? "✓ 保存しました" : savingInfo ? "保存中..." : "保存"}
           </button>
+        </section>
+
+        {/* 商品詳細資料 */}
+        <section className="p-6 rounded-2xl border border-amber-500/20 bg-amber-500/5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-3 mb-1">
+                <h2 className="text-lg font-bold">商品詳細資料</h2>
+                <span className="text-xs px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300">AI参照</span>
+              </div>
+              <p className="text-sm text-gray-400">商材の特性・成分・効能・使用方法などをまとめた資料。AIチェック時に商品理解の前提として参照されます。</p>
+            </div>
+          </div>
+
+          {productFileName ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-black/20 border border-amber-500/20">
+                <span className="text-amber-300 text-lg">📄</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{productFileName}</p>
+                  {productUploadResult && (
+                    <p className="text-xs text-gray-500 mt-0.5">{productUploadResult.extractedLength.toLocaleString()} 文字 抽出済み</p>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <label className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/15 transition-colors cursor-pointer">
+                    差し替え
+                    <input type="file" accept=".xlsx,.csv,.txt" onChange={uploadProductFile} className="hidden" />
+                  </label>
+                  <button onClick={deleteProductFile} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400 hover:bg-red-500/10 transition-colors">
+                    削除
+                  </button>
+                </div>
+              </div>
+              {productUploadResult?.preview && (
+                <div className="p-3 rounded-xl bg-black/20 border border-white/5">
+                  <p className="text-xs text-gray-500 mb-1">プレビュー（先頭300文字）</p>
+                  <p className="text-xs text-gray-400 font-mono whitespace-pre-wrap leading-relaxed">{productUploadResult.preview}</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <label className={`flex flex-col items-center justify-center gap-2 p-8 rounded-xl border-2 border-dashed transition-colors cursor-pointer ${uploadingProduct ? "border-amber-500/50 bg-amber-500/5" : "border-white/10 hover:border-amber-500/40 hover:bg-amber-500/5"}`}>
+              {uploadingProduct ? (
+                <>
+                  <div className="w-6 h-6 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm text-amber-300">解析中...</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-2xl">📋</span>
+                  <span className="text-sm font-medium text-gray-300">商品詳細資料をアップロード</span>
+                  <span className="text-xs text-gray-500">Excel (.xlsx) / CSV / テキスト (.txt)</span>
+                </>
+              )}
+              <input type="file" accept=".xlsx,.csv,.txt" onChange={uploadProductFile} className="hidden" disabled={uploadingProduct} />
+            </label>
+          )}
+          {productFileError && (
+            <p className="mt-2 text-xs text-red-400">{productFileError}</p>
+          )}
         </section>
 
         {/* CR提出用 Google スプレッドシート */}
