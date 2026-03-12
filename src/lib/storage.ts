@@ -3,6 +3,7 @@ import {
   Work,
   WorkSummary,
   Project,
+  Client,
   NgCase,
   AllowedCase,
   ChecklistSession,
@@ -53,6 +54,13 @@ function toProject(row: PrismaProject): Project {
     ngCases: (row.ngCases as unknown as NgCase[]) ?? [],
     allowedCases: (row.allowedCases as unknown as AllowedCase[]) ?? [],
     checkMode: ((row as unknown as { checkMode?: string }).checkMode as "soft" | "hard") ?? "soft",
+    clientId: (row as unknown as { clientId?: string | null }).clientId ?? undefined,
+    client: (row as unknown as { client?: { id: string; name: string; companyRegulations: string | null; createdAt: string } | null }).client
+      ? (() => {
+          const c = (row as unknown as { client: { id: string; name: string; companyRegulations: string | null; createdAt: string } }).client;
+          return { id: c.id, name: c.name, companyRegulations: c.companyRegulations ?? undefined, createdAt: c.createdAt };
+        })()
+      : undefined,
   };
 }
 
@@ -123,13 +131,19 @@ export async function deleteWork(id: string): Promise<boolean> {
 // ────────── Project CRUD ──────────
 
 export async function getAllProjects(): Promise<Project[]> {
-  const rows = await prisma.project.findMany({ orderBy: { createdAt: "desc" } });
-  return rows.map(toProject);
+  const rows = await (prisma.project.findMany as (args: object) => Promise<unknown[]>)({
+    orderBy: { createdAt: "desc" },
+    include: { client: true },
+  });
+  return rows.map((r) => toProject(r as PrismaProject));
 }
 
 export async function getProject(id: string): Promise<Project | null> {
-  const row = await prisma.project.findUnique({ where: { id } });
-  return row ? toProject(row) : null;
+  const row = await (prisma.project.findUnique as (args: object) => Promise<unknown>)({
+    where: { id },
+    include: { client: true },
+  });
+  return row ? toProject(row as PrismaProject) : null;
 }
 
 export async function saveProject(project: Project): Promise<void> {
@@ -146,7 +160,7 @@ export async function saveProject(project: Project): Promise<void> {
     ngCases: (project.ngCases ?? []) as unknown as object[],
     allowedCases: (project.allowedCases ?? []) as unknown as object[],
   };
-  const dataWithMode = { ...data, checkMode: project.checkMode ?? "soft" };
+  const dataWithMode = { ...data, checkMode: project.checkMode ?? "soft", clientId: project.clientId ?? null };
   await prisma.project.upsert({
     where: { id: project.id },
     create: { id: project.id, ...dataWithMode },
@@ -262,6 +276,53 @@ export async function saveMediaRegulations(regs: MediaRegulations): Promise<void
       })
     )
   );
+}
+
+// ────────── Client CRUD ──────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const prismaClient = (prisma as any).client;
+
+type RawClient = { id: string; name: string; companyRegulations: string | null; createdAt: string };
+
+function toClient(r: RawClient): Client {
+  return {
+    id: r.id,
+    name: r.name,
+    companyRegulations: r.companyRegulations ?? undefined,
+    createdAt: r.createdAt,
+  };
+}
+
+export async function getAllClients(): Promise<Client[]> {
+  const rows: RawClient[] = await prismaClient.findMany({ orderBy: { createdAt: "desc" } });
+  return rows.map(toClient);
+}
+
+export async function getClient(id: string): Promise<Client | null> {
+  const row: RawClient | null = await prismaClient.findUnique({ where: { id } });
+  return row ? toClient(row) : null;
+}
+
+export async function saveClient(client: Client): Promise<void> {
+  const data = {
+    name: client.name,
+    companyRegulations: client.companyRegulations ?? null,
+    createdAt: client.createdAt,
+  };
+  await prismaClient.upsert({
+    where: { id: client.id },
+    create: { id: client.id, ...data },
+    update: data,
+  });
+}
+
+export async function deleteClient(id: string): Promise<boolean> {
+  try {
+    await prismaClient.delete({ where: { id } });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // ────────── Work Summary ──────────

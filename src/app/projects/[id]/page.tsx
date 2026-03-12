@@ -3,7 +3,7 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { v4 as uuidv4 } from "uuid";
-import { Project, NgCase, AllowedCase, RegulationCategory } from "@/lib/types";
+import { Project, NgCase, AllowedCase, RegulationCategory, Client } from "@/lib/types";
 
 const REGULATION_CATEGORIES: RegulationCategory[] = [
   "企業レギュレーション",
@@ -31,12 +31,13 @@ export default function ProjectSettingsPage({
   const { id } = use(params);
 
   const [project, setProject] = useState<Project | null>(null);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   // Basic info
   const [name, setName] = useState("");
-  const [clientName, setClientName] = useState("");
+  const [clientId, setClientId] = useState("");
   const [description, setDescription] = useState("");
   const [checkMode, setCheckMode] = useState<"soft" | "hard">("soft");
   const [savingInfo, setSavingInfo] = useState(false);
@@ -84,26 +85,27 @@ export default function ProjectSettingsPage({
   const [addingAllowed, setAddingAllowed] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/projects/${id}`)
-      .then((r) => {
-        if (!r.ok) { setNotFound(true); setLoading(false); return null; }
-        return r.json();
-      })
-      .then((data: Project | null) => {
-        if (!data) return;
-        setProject(data);
-        setName(data.name);
-        setClientName(data.clientName ?? "");
-        setDescription(data.description ?? "");
-        setSheetUrl(data.sheetUrl ?? "");
-        setNgSheetUrl(data.ngSheetUrl ?? "");
-        setCompanyRegulations(data.companyRegulations ?? "");
-        setCompanyFileName(data.companyRegulationsFileName ?? null);
-        setCheckMode(data.checkMode ?? "soft");
-        setNgCases(data.ngCases ?? []);
-        setAllowedCases(data.allowedCases ?? []);
-        setLoading(false);
-      });
+    Promise.all([
+      fetch(`/api/projects/${id}`),
+      fetch("/api/clients"),
+    ]).then(async ([projRes, clientsRes]) => {
+      if (!projRes.ok) { setNotFound(true); setLoading(false); return; }
+      const data: Project = await projRes.json();
+      const clientsData: Client[] = await clientsRes.json();
+      setProject(data);
+      setClients(clientsData);
+      setName(data.name);
+      setClientId(data.clientId ?? "");
+      setDescription(data.description ?? "");
+      setSheetUrl(data.sheetUrl ?? "");
+      setNgSheetUrl(data.ngSheetUrl ?? "");
+      setCompanyRegulations(data.companyRegulations ?? "");
+      setCompanyFileName(data.companyRegulationsFileName ?? null);
+      setCheckMode(data.checkMode ?? "soft");
+      setNgCases(data.ngCases ?? []);
+      setAllowedCases(data.allowedCases ?? []);
+      setLoading(false);
+    });
   }, [id]);
 
   async function saveInfo() {
@@ -111,7 +113,7 @@ export default function ProjectSettingsPage({
     const res = await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, clientName, description, checkMode }),
+      body: JSON.stringify({ name, clientId: clientId || undefined, description, checkMode }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -345,7 +347,9 @@ export default function ProjectSettingsPage({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-black">{project?.name}</h1>
-          {project?.clientName && <p className="text-gray-400 mt-1">{project.clientName}</p>}
+          {(project?.client?.name || project?.clientName) && (
+            <p className="text-gray-400 mt-1">{project?.client?.name ?? project?.clientName}</p>
+          )}
         </div>
         <Link
           href={`/works?project=${id}`}
@@ -380,9 +384,24 @@ export default function ProjectSettingsPage({
                 className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none transition-colors" />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">クライアント名</label>
-              <input type="text" value={clientName} onChange={(e) => setClientName(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none transition-colors" />
+              <label className="block text-xs text-gray-400 mb-1">クライアント</label>
+              {clients.length > 0 ? (
+                <select
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none transition-colors text-sm"
+                >
+                  <option value="">未設定</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs text-gray-500 px-1">
+                  ※ クライアントを先に登録すると紐付けられます →{" "}
+                  <Link href="/clients" className="text-violet-400 hover:underline">クライアント管理</Link>
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">備考</label>

@@ -115,12 +115,17 @@ export async function POST(req: NextRequest) {
   const isImage = work.fileType?.startsWith("image/");
   const isVideo = work.fileType?.startsWith("video/");
 
+  // クライアント共通レギュ + 商材固有レギュをマージ
+  const clientRegs = project?.client?.companyRegulations;
+  const projectRegs = project?.companyRegulations;
+  const mergedRegulations = [clientRegs, projectRegs].filter(Boolean).join("\n\n---（商材固有レギュレーション）---\n\n") || undefined;
+
   const promptOpts = {
     title: work.title,
     contentType: work.contentType,
     targetCategory: work.targetCategory,
     customRegulations: work.customRegulations,
-    companyRegulations: project?.companyRegulations,
+    companyRegulations: mergedRegulations,
     companyRegulationsFile: project?.companyRegulationsFileContent,
     companyRegulationsFileName: project?.companyRegulationsFileName,
     projectNgCases: project?.ngCases,

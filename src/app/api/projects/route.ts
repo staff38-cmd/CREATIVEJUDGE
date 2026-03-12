@@ -13,7 +13,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, clientName, description } = body;
+  const { name, clientName, clientId, description } = body;
 
   if (!name || !name.trim()) {
     return NextResponse.json({ error: "案件名は必須です" }, { status: 400 });
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
     id: uuidv4(),
     name: name.trim(),
     clientName: clientName?.trim() || undefined,
+    clientId: clientId || undefined,
     description: description?.trim() || undefined,
     createdAt: new Date().toISOString(),
   };

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ContentType, Project, MediaType } from "@/lib/types";
+import { Client, ContentType, Project, MediaType } from "@/lib/types";
 
 type InputMode = "file" | "text" | "url";
 
@@ -77,19 +77,26 @@ function SubmitForm() {
   type ResultItem = { id: string; name: string; status: "ng" | "warning" | "ok" };
   const [resultItems, setResultItems] = useState<ResultItem[]>([]);
 
-  // Project state
+  // Project / Client state
   const [projects, setProjects] = useState<Project[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [selectedProjectId, setSelectedProjectId] = useState<string>(searchParams.get("project") ?? "");
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectClient, setNewProjectClient] = useState("");
   const [creatingProject, setCreatingProject] = useState(false);
 
   useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((data) => setProjects(data))
-      .catch(() => {});
+    Promise.all([
+      fetch("/api/projects").then((r) => r.json()),
+      fetch("/api/clients").then((r) => r.json()),
+    ]).then(([projectsData, clientsData]) => {
+      setProjects(projectsData);
+      setClients(clientsData);
+      // URLパラメータでproject指定がある場合、対応クライアントを自動選択
+      const presetProject = projectsData.find((p: Project) => p.id === (searchParams.get("project") ?? ""));
+      if (presetProject?.clientId) setSelectedClientId(presetProject.clientId);
+    }).catch(() => {});
   }, []);
 
   async function handleCreateProject() {
@@ -99,7 +106,7 @@ function SubmitForm() {
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newProjectName.trim(), clientName: newProjectClient.trim() }),
+        body: JSON.stringify({ name: newProjectName.trim(), clientId: selectedClientId || undefined }),
       });
       if (res.ok) {
         const project: Project = await res.json();
@@ -406,31 +413,47 @@ function SubmitForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Project Selector */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+        {/* Project Selector: クライアント → 商材の2段階 */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-300">
             案件 <span className="text-gray-500">（任意）</span>
           </label>
+          {clients.length > 0 && (
+            <select
+              value={selectedClientId}
+              onChange={(e) => { setSelectedClientId(e.target.value); setSelectedProjectId(""); }}
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 focus:outline-none transition-colors text-sm"
+            >
+              <option value="" className="bg-gray-900">① クライアントを選択</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id} className="bg-gray-900">{c.name}</option>
+              ))}
+            </select>
+          )}
           {!showNewProject ? (
             <div className="flex gap-2">
               <select
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
-                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 transition-colors"
+                className="flex-1 px-4 py-3 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none transition-colors"
               >
-                <option value="" className="bg-gray-900">案件なし</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id} className="bg-gray-900">
-                    {p.name}{p.clientName ? ` (${p.clientName})` : ""}
-                  </option>
-                ))}
+                <option value="" className="bg-gray-900">
+                  {clients.length > 0 ? "② 商材・案件を選択" : "案件なし"}
+                </option>
+                {projects
+                  .filter((p) => selectedClientId ? p.clientId === selectedClientId : true)
+                  .map((p) => (
+                    <option key={p.id} value={p.id} className="bg-gray-900">
+                      {p.name}
+                    </option>
+                  ))}
               </select>
               <button
                 type="button"
                 onClick={() => setShowNewProject(true)}
                 className="px-4 py-3 rounded-xl text-sm font-medium border border-white/20 hover:border-violet-500/50 hover:bg-violet-500/10 transition-colors whitespace-nowrap"
               >
-                ＋ 新規案件
+                ＋ 新規
               </button>
             </div>
           ) : (
@@ -440,30 +463,16 @@ function SubmitForm() {
                 type="text"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
-                placeholder="案件名 *"
-                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none text-sm transition-colors"
-              />
-              <input
-                type="text"
-                value={newProjectClient}
-                onChange={(e) => setNewProjectClient(e.target.value)}
-                placeholder="クライアント名（任意）"
+                placeholder="案件名・商材名 *"
                 className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none text-sm transition-colors"
               />
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleCreateProject}
-                  disabled={!newProjectName.trim() || creatingProject}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
+                <button type="button" onClick={handleCreateProject} disabled={!newProjectName.trim() || creatingProject}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
                   {creatingProject ? "作成中..." : "作成して選択"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowNewProject(false); setNewProjectName(""); setNewProjectClient(""); }}
-                  className="px-4 py-2 rounded-lg text-sm font-medium border border-white/20 hover:bg-white/5 transition-colors"
-                >
+                <button type="button" onClick={() => { setShowNewProject(false); setNewProjectName(""); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-white/20 hover:bg-white/5 transition-colors">
                   キャンセル
                 </button>
               </div>

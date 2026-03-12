@@ -40,6 +40,9 @@ export default async function RootLayout({
                   <Link href="/dashboard" className="text-sm text-gray-400 hover:text-white transition-colors">
                     ダッシュボード
                   </Link>
+                  <Link href="/clients" className="text-sm text-gray-400 hover:text-white transition-colors">
+                    クライアント
+                  </Link>
                   <Link href="/projects" className="text-sm text-gray-400 hover:text-white transition-colors">
                     案件
                   </Link>

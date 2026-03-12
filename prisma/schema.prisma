@@ -33,10 +33,20 @@ model Work {
   @@index([submittedAt])
 }
 
+model Client {
+  id                 String    @id @default(uuid())
+  name               String
+  companyRegulations String?   @db.Text
+  createdAt          String
+
+  projects           Project[]
+}
+
 model Project {
   id                            String   @id @default(uuid())
   name                          String
   clientName                    String?
+  clientId                      String?
   description                   String?  @db.Text
   createdAt                     String
   sheetUrl                      String?
@@ -48,7 +58,10 @@ model Project {
   allowedCases                  Json     @default("[]")
   checkMode                     String   @default("soft")
 
+  client                        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
   works                         Work[]
+
+  @@index([clientId])
 }
 
 model ChecklistSession {

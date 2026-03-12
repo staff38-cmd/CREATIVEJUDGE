@@ -1,5 +1,12 @@
 export type ContentType = "image" | "video" | "text" | "lp" | "url";
 
+export interface Client {
+  id: string;
+  name: string;
+  companyRegulations?: string;
+  createdAt: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -20,6 +27,9 @@ export interface Project {
   allowedCases?: AllowedCase[];
   // AIチェックモード: "soft"=企業レギュ主体（デフォルト）| "hard"=法令も含めて厳しくチェック
   checkMode?: "soft" | "hard";
+  // クライアント紐付け
+  clientId?: string;
+  client?: Client;
 }
 
 export interface NgCase {
