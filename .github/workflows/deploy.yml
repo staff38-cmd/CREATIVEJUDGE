@@ -43,4 +43,4 @@ jobs:
 
       - name: Install runtime deps, migrate DB & restart pm2
         run: |
-          ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/app && npm ci --omit=dev --prefer-offline && mkdir -p src/generated/prisma && DATABASE_URL='${{ secrets.DATABASE_URL }}' npx prisma db push && pm2 restart all --update-env"
+          ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/app && npm ci --omit=dev --prefer-offline && mkdir -p src/generated/prisma && DATABASE_URL='${{ secrets.DATABASE_URL }}' npx prisma db push && pm2 startOrRestart ecosystem.config.js --update-env"
