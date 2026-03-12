@@ -494,63 +494,6 @@ export default function ProjectSettingsPage({
           )}
         </section>
 
-        {/* 企業レギュレーション（ファイル） */}
-        <section className="p-6 rounded-2xl border border-blue-500/20 bg-blue-500/5">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">② 企業</span>
-                <h2 className="text-lg font-bold">企業レギュレーションファイル</h2>
-              </div>
-              <p className="text-sm text-gray-400">企業共通レギュレーション表（Excel/CSV）をアップロード。AIチェック時に自動参照されます。</p>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">AI参照</span>
-          </div>
-
-          {companyFileName ? (
-            <div className="mt-4 p-4 rounded-xl border border-green-500/30 bg-green-500/10">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-green-400 text-lg">✓</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-green-300 truncate">{companyFileName}</p>
-                    {companyUploadResult && <p className="text-xs text-gray-400 mt-0.5">{companyUploadResult.extractedLength} 文字を抽出済み</p>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <label className="px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 hover:bg-white/5 cursor-pointer transition-colors">
-                    差し替え
-                    <input type="file" accept=".xlsx,.xls,.csv,.txt" className="hidden" onChange={uploadRegulationsFile} />
-                  </label>
-                  <button onClick={deleteRegulationsFile}
-                    className="px-3 py-1.5 rounded-lg text-xs text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-white/10 hover:border-red-500/30 transition-colors">
-                    削除
-                  </button>
-                </div>
-              </div>
-              {companyUploadResult?.preview && (
-                <div className="mt-3 p-3 rounded-lg bg-black/30 border border-white/10">
-                  <p className="text-xs text-gray-500 mb-1">抽出プレビュー（先頭300文字）</p>
-                  <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono leading-relaxed">{companyUploadResult.preview}</pre>
-                </div>
-              )}
-              {companyFileError && <p className="mt-2 text-sm text-red-400">{companyFileError}</p>}
-            </div>
-          ) : (
-            <>
-              <label className={`mt-4 flex flex-col items-center justify-center w-full py-8 rounded-xl border-2 border-dashed cursor-pointer transition-all ${uploadingCompanyFile ? "border-blue-500/50 bg-blue-500/5" : "border-white/20 hover:border-blue-500/40 hover:bg-blue-500/5"}`}>
-                <input type="file" accept=".xlsx,.xls,.csv,.txt" className="hidden" onChange={uploadRegulationsFile} disabled={uploadingCompanyFile} />
-                {uploadingCompanyFile ? (
-                  <><div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-2" /><p className="text-sm text-blue-300">解析中...</p></>
-                ) : (
-                  <><span className="text-2xl mb-2">📊</span><p className="text-sm font-medium text-gray-300">ファイルをアップロード</p><p className="text-xs text-gray-500 mt-1">.xlsx .xls .csv .txt に対応</p></>
-                )}
-              </label>
-              {companyFileError && <p className="mt-2 text-sm text-red-400">{companyFileError}</p>}
-            </>
-          )}
-        </section>
-
         {/* NG事例ナレッジ */}
         <section className="p-6 rounded-2xl border border-red-500/20 bg-red-500/5">
           <div className="flex items-start justify-between mb-2">

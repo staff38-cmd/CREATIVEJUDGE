@@ -24,9 +24,10 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { name, clientName, description, companyRegulations, ngCases, allowedCases, sheetUrl, ngSheetUrl, checkMode } = body;
+  const { name, clientId, clientName, description, companyRegulations, ngCases, allowedCases, sheetUrl, ngSheetUrl, checkMode } = body;
 
   if (name !== undefined) project.name = name.trim();
+  if (clientId !== undefined) project.clientId = clientId || undefined;
   if (clientName !== undefined) project.clientName = clientName?.trim() || undefined;
   if (description !== undefined) project.description = description?.trim() || undefined;
   if (companyRegulations !== undefined) project.companyRegulations = companyRegulations?.trim() || undefined;

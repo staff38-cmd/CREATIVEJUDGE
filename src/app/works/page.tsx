@@ -25,6 +25,11 @@ function WorksContent() {
   const [statusFilter, setStatusFilter] = useState<string>(ALL);
   const [projectFilter, setProjectFilter] = useState<string>(projectParam);
 
+  // 複数選択削除
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   useEffect(() => {
     setProjectFilter(projectParam);
   }, [projectParam]);
@@ -51,6 +56,39 @@ function WorksContent() {
 
   const currentProject = projects.find((p) => p.id === projectFilter);
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((w) => w.id)));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`選択した ${selected.size} 件を削除しますか？`)) return;
+    setBulkDeleting(true);
+    await Promise.all([...selected].map((id) => fetch(`/api/works/${id}`, { method: "DELETE" })));
+    setWorks((prev) => prev.filter((w) => !selected.has(w.id)));
+    setSelected(new Set());
+    setSelectMode(false);
+    setBulkDeleting(false);
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="flex items-center justify-between mb-8">
@@ -64,18 +102,50 @@ function WorksContent() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href="/projects"
-            className="px-4 py-2 rounded-full text-sm font-medium border border-white/20 hover:border-white/40 transition-colors"
-          >
-            案件一覧
-          </Link>
-          <Link
-            href={currentProject ? `/submit?project=${currentProject.id}` : "/submit"}
-            className="px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 transition-all"
-          >
-            + 新規チェック
-          </Link>
+          {selectMode ? (
+            <>
+              <button
+                onClick={toggleSelectAll}
+                className="px-4 py-2 rounded-full text-sm font-medium border border-white/20 hover:bg-white/5 transition-colors"
+              >
+                {selected.size === filtered.length ? "全解除" : "全選択"}
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={selected.size === 0 || bulkDeleting}
+                className="px-4 py-2 rounded-full text-sm font-semibold bg-red-500/80 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {bulkDeleting ? "削除中..." : `削除 (${selected.size})`}
+              </button>
+              <button
+                onClick={exitSelectMode}
+                className="px-4 py-2 rounded-full text-sm font-medium border border-white/20 hover:bg-white/5 transition-colors"
+              >
+                キャンセル
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/projects"
+                className="px-4 py-2 rounded-full text-sm font-medium border border-white/20 hover:border-white/40 transition-colors"
+              >
+                案件一覧
+              </Link>
+              <button
+                onClick={() => setSelectMode(true)}
+                className="px-4 py-2 rounded-full text-sm font-medium border border-white/20 hover:border-white/40 transition-colors"
+              >
+                複数選択
+              </button>
+              <Link
+                href={currentProject ? `/submit?project=${currentProject.id}` : "/submit"}
+                className="px-5 py-2.5 rounded-full text-sm font-semibold bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 transition-all"
+              >
+                + 新規チェック
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -155,6 +225,9 @@ function WorksContent() {
             <WorkRow
               key={work.id}
               work={work}
+              selectMode={selectMode}
+              selected={selected.has(work.id)}
+              onToggleSelect={() => toggleSelect(work.id)}
               onDelete={() => setWorks((prev) => prev.filter((w) => w.id !== work.id))}
             />
           ))}
@@ -172,7 +245,19 @@ export default function WorksPage() {
   );
 }
 
-function WorkRow({ work, onDelete }: { work: WorkSummary; onDelete: () => void }) {
+function WorkRow({
+  work,
+  selectMode,
+  selected,
+  onToggleSelect,
+  onDelete,
+}: {
+  work: WorkSummary;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: () => void;
+  onDelete: () => void;
+}) {
   const [deleting, setDeleting] = useState(false);
   const isImage = work.fileType?.startsWith("image/");
   const statusBadge = work.overallStatus ? STATUS_BADGE[work.overallStatus] : null;
@@ -184,6 +269,49 @@ function WorkRow({ work, onDelete }: { work: WorkSummary; onDelete: () => void }
     setDeleting(true);
     await fetch(`/api/works/${work.id}`, { method: "DELETE" });
     onDelete();
+  }
+
+  if (selectMode) {
+    return (
+      <div
+        onClick={onToggleSelect}
+        className={`flex items-center gap-4 p-4 rounded-2xl border cursor-pointer transition-all ${
+          selected
+            ? "border-violet-500/60 bg-violet-500/10"
+            : "border-white/10 bg-white/5 hover:border-white/20"
+        }`}
+      >
+        <div className={`w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-colors ${selected ? "bg-violet-500 border-violet-500" : "border-white/30"}`}>
+          {selected && (
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
+        </div>
+        <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-black/30 flex-shrink-0">
+          {isImage && work.filePath ? (
+            <Image src={work.filePath} alt={work.title} fill className="object-cover" unoptimized />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center text-2xl">
+              {work.contentType === "video" ? "🎬" : work.contentType === "url" ? "🔗" : work.contentType === "lp" ? "📰" : "📝"}
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold truncate">{work.title}</p>
+          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+            <span>{CONTENT_TYPE_LABELS[work.contentType]}</span>
+            {work.projectName && <span className="text-violet-400/70">📁 {work.projectName}</span>}
+            <span>{new Date(work.submittedAt).toLocaleDateString("ja-JP")}</span>
+          </div>
+        </div>
+        {statusBadge && (
+          <span className={`text-xs px-2.5 py-1 rounded-full font-bold flex-shrink-0 ${statusBadge.className}`}>
+            {statusBadge.label}
+          </span>
+        )}
+      </div>
+    );
   }
 
   return (
