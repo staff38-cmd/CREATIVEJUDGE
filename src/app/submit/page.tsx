@@ -114,7 +114,6 @@ function SubmitForm() {
         setSelectedProjectId(project.id);
         setShowNewProject(false);
         setNewProjectName("");
-        setNewProjectClient("");
       }
     } finally {
       setCreatingProject(false);

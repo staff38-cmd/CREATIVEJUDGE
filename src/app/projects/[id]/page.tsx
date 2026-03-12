@@ -56,11 +56,6 @@ export default function ProjectSettingsPage({
   const [syncResult, setSyncResult] = useState<{ imported: number; total: number; message: string } | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
 
-  // 企業レギュレーション（テキスト）
-  const [companyRegulations, setCompanyRegulations] = useState("");
-  const [savingCompanyRegs, setSavingCompanyRegs] = useState(false);
-  const [companyRegsSaved, setCompanyRegsSaved] = useState(false);
-
   // 企業レギュレーション（ファイル）
   const [companyFileName, setCompanyFileName] = useState<string | null>(null);
   const [uploadingCompanyFile, setUploadingCompanyFile] = useState(false);
@@ -99,7 +94,6 @@ export default function ProjectSettingsPage({
       setDescription(data.description ?? "");
       setSheetUrl(data.sheetUrl ?? "");
       setNgSheetUrl(data.ngSheetUrl ?? "");
-      setCompanyRegulations(data.companyRegulations ?? "");
       setCompanyFileName(data.companyRegulationsFileName ?? null);
       setCheckMode(data.checkMode ?? "soft");
       setNgCases(data.ngCases ?? []);
@@ -176,20 +170,6 @@ export default function ProjectSettingsPage({
       setSyncError("ネットワークエラーが発生しました");
     }
     setSyncing(false);
-  }
-
-  async function saveCompanyRegulations() {
-    setSavingCompanyRegs(true);
-    const res = await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ companyRegulations }),
-    });
-    if (res.ok) {
-      setCompanyRegsSaved(true);
-      setTimeout(() => setCompanyRegsSaved(false), 2000);
-    }
-    setSavingCompanyRegs(false);
   }
 
   async function uploadRegulationsFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -512,31 +492,6 @@ export default function ProjectSettingsPage({
               ⚠ {syncError}
             </div>
           )}
-        </section>
-
-        {/* 企業レギュレーション（テキスト） */}
-        <section className="p-6 rounded-2xl border border-blue-500/20 bg-blue-500/5">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">② 企業</span>
-                <h2 className="text-lg font-bold">企業レギュレーション</h2>
-              </div>
-              <p className="text-sm text-gray-400">このクライアント全案件に適用される共通ルール。薬機法チェックの次にAIが参照します。</p>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">AI参照</span>
-          </div>
-          <textarea value={companyRegulations} onChange={(e) => setCompanyRegulations(e.target.value)}
-            placeholder={`例:\n- 競合他社名（A社・B社）の言及・比較禁止\n- 「医師推薦」「専門家監修」表現は事前承認必須\n- SNS広告ではビフォーアフター画像禁止`}
-            rows={6}
-            className="w-full mt-4 px-4 py-3 rounded-xl bg-black/30 border border-white/10 focus:border-blue-500 focus:outline-none transition-colors resize-none text-sm font-mono" />
-          <div className="flex items-center justify-between mt-3">
-            <p className="text-xs text-gray-600">{companyRegulations.length} 文字</p>
-            <button onClick={saveCompanyRegulations} disabled={savingCompanyRegs}
-              className="px-5 py-2 rounded-xl text-sm font-semibold bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-              {companyRegsSaved ? "✓ 保存しました" : savingCompanyRegs ? "保存中..." : "保存"}
-            </button>
-          </div>
         </section>
 
         {/* 企業レギュレーション（ファイル） */}
