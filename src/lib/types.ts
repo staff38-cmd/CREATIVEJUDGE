@@ -18,6 +18,8 @@ export interface Project {
   ngCases?: NgCase[];
   // 許容表現ナレッジ
   allowedCases?: AllowedCase[];
+  // AIチェックモード: "soft"=企業レギュ主体（デフォルト）| "hard"=法令も含めて厳しくチェック
+  checkMode?: "soft" | "hard";
 }
 
 export interface NgCase {
@@ -55,12 +57,11 @@ export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
 };
 
 export type RegulationCategory =
+  | "企業レギュレーション"
+  | "媒体ガイドライン"
+  | "過去NG事例"
   | "薬機法"
   | "景品表示法"
-  | "健康増進法"
-  | "広告ガイドライン"
-  | "医師法"
-  | "社内レギュレーション"
   | "カスタム";
 
 export interface ComplianceIssue {

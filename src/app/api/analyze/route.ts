@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
     projectAllowedCases: project?.allowedCases,
     mediaRegulationNote,
     selectedMedia,
+    checkMode: project?.checkMode ?? "soft",
   };
 
   const parts: GeminiPart[] = [];
@@ -292,6 +293,7 @@ interface BuildPromptOptions {
   extra?: string;
   mediaRegulationNote?: string;
   selectedMedia?: MediaType;
+  checkMode?: "soft" | "hard";
 }
 
 function buildPrompt(opts: BuildPromptOptions): string {
@@ -299,7 +301,7 @@ function buildPrompt(opts: BuildPromptOptions): string {
     title, contentType, targetCategory, customRegulations,
     companyRegulations, companyRegulationsFile, companyRegulationsFileName,
     projectNgCases, projectAllowedCases, textContent, extra,
-    mediaRegulationNote, selectedMedia,
+    mediaRegulationNote, selectedMedia, checkMode,
   } = opts;
 
   const categoryNote = targetCategory
@@ -356,37 +358,29 @@ function buildPrompt(opts: BuildPromptOptions): string {
     ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n【媒体別レギュレーション】${selectedMedia ? `（${selectedMedia}）` : ""}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${mediaRegulationNote}`
     : "";
 
-  return `あなたは日本の広告制作・審査実務に精通した専門家です。
-以下のクリエイティブ素材について、「**媒体審査やクライアントチェックで実際に引っかかるか**」という実務観点で判定してください。
+  const modeInstruction = checkMode === "hard"
+    ? `【チェックモード: ハード】
+- 企業レギュレーション・過去NG事例に加え、薬機法・景品表示法・景品表示法・ステマ規制も厳しくチェックしてください。
+- 「誰が見ても問題ない」表現以外は積極的に指摘してください。
+- 法令違反・グレーゾーンも violation または warning として拾ってください。`
+    : `【チェックモード: ソフト（デフォルト）】
+- チェックの主軸は「企業レギュレーション」「過去NG事例」「媒体ガイドライン」です。
+- 薬機法・景品表示法は企業レギュレーションに明記されている場合のみ指摘してください。独自解釈での法令指摘は不要です。
+- 指摘は「実際に差し戻しになるもの」に絞ってください。念のための過剰指摘は不要です。`;
 
-【最重要：判定の優先順位】
-優先度①（最重視）: 企業レギュレーション・クライアント固有ルール・過去NG事例
-優先度②（重視）: 媒体別ガイドライン
-優先度③（参考）: 薬機法・景品表示法などの法令
+  return `あなたは日本の広告制作チームの審査担当です。
+以下のクリエイティブ素材について、「**クライアントチェックや媒体審査で実際に引っかかるか**」という実務観点で判定してください。
 
-【薬機法・景品表示法の判定基準（重要）】
-これらの法令は解釈の幅が大きく、実務では行政指導を受けて初めて基準が引き直されるケースが多い。
-そのため以下のルールで判定してください：
-- "violation"（要修正）は「誰が見ても明らかに抵触する」表現のみ。例: 「○○が治る」「治療効果あり」「No.1（根拠ゼロ）」
-- グレーゾーン・解釈余地がある表現は "warning" 止まりにしてください。violationにしないでください。
-- 「スッキリ」「サポート」「整える」等の一般的な表現は原則 caution 以下にしてください。
-- 「10倍」「高配合」等の強調表現は、根拠や条件次第でOKなので warning 止まりにしてください。
-- 過剰な指摘は不要です。実務上ほぼ問題にならない表現にまで指摘しないでください。
+${modeInstruction}
 
-【企業レギュレーション・クライアント基準の判定基準（最重視）】
-- 企業レギュレーションやクライアント固有ルールに違反する表現は確実に "violation" にしてください。
-- 過去NG事例と同様の表現は "violation" にしてください。
+【共通ルール】
 - 許容表現として登録されているものは絶対にNGにしないでください。
+- 企業レギュレーションやクライアント固有ルールへの違反は確実に violation にしてください。
 
 【チェック対象】
 タイトル: ${title}
 コンテンツ種別: ${contentType}
-${categoryNote}${customNote}${textSection}${extraNote}
-
-【チェック観点①】薬機法・広告法令（明確な違反のみ指摘）
-- 薬機法: 「治る」「治療」等の医薬品的効果効能の断定表現（グレーゾーンは warning 止まり）
-- 景品表示法: 完全に根拠のないNo.1・最上級表現、明らかな虚偽表示
-- ステマ規制: 広告であることを隠した明確な口コミ・推薦表現${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}${mediaNote}
+${categoryNote}${customNote}${textSection}${extraNote}${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}${mediaNote}
 
 【出力形式】
 以下のJSON形式のみ返してください。余分なテキストは不要です。
@@ -397,7 +391,7 @@ ${categoryNote}${customNote}${textSection}${extraNote}
   "issues": [
     {
       "level": "violation" | "warning" | "caution",
-      "category": "薬機法" | "景品表示法" | "健康増進法" | "広告ガイドライン" | "医師法" | "社内レギュレーション" | "カスタム",
+      "category": "企業レギュレーション" | "媒体ガイドライン" | "過去NG事例" | "薬機法" | "景品表示法" | "カスタム",
       "clause": "根拠となるルール・審査基準（例: 薬機法68条 / CLレギュレーション / 過去NG事例）",
       "title": "問題点の見出し（30字以内）",
       "description": "なぜ審査・CLに引っかかるリスクがあるか（実務的な説明）",
@@ -439,11 +433,11 @@ function parseResponse(raw: string): ComplianceResult {
         ? i.level
         : "caution") as RiskLevel,
       category: (
-        ["薬機法", "景品表示法", "健康増進法", "広告ガイドライン", "医師法", "社内レギュレーション", "カスタム"].includes(
+        ["企業レギュレーション", "媒体ガイドライン", "過去NG事例", "薬機法", "景品表示法", "カスタム"].includes(
           i.category ?? ""
         )
           ? i.category
-          : "広告ガイドライン"
+          : "企業レギュレーション"
       ) as RegulationCategory,
       clause: i.clause,
       title: String(i.title ?? "指摘事項"),

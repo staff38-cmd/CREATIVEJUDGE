@@ -6,20 +6,20 @@ import { v4 as uuidv4 } from "uuid";
 import { Project, NgCase, AllowedCase, RegulationCategory } from "@/lib/types";
 
 const REGULATION_CATEGORIES: RegulationCategory[] = [
+  "企業レギュレーション",
+  "媒体ガイドライン",
+  "過去NG事例",
   "薬機法",
   "景品表示法",
-  "健康増進法",
-  "広告ガイドライン",
-  "医師法",
   "カスタム",
 ];
 
 const CATEGORY_COLOR: Record<RegulationCategory, string> = {
-  薬機法: "bg-red-500/20 text-red-300 border-red-500/30",
-  景品表示法: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  健康増進法: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  広告ガイドライン: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  医師法: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  企業レギュレーション: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  媒体ガイドライン: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  過去NG事例: "bg-red-500/20 text-red-300 border-red-500/30",
+  薬機法: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  景品表示法: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
   カスタム: "bg-gray-500/20 text-gray-300 border-gray-500/30",
 };
 
@@ -38,6 +38,7 @@ export default function ProjectSettingsPage({
   const [name, setName] = useState("");
   const [clientName, setClientName] = useState("");
   const [description, setDescription] = useState("");
+  const [checkMode, setCheckMode] = useState<"soft" | "hard">("soft");
   const [savingInfo, setSavingInfo] = useState(false);
   const [infoSaved, setInfoSaved] = useState(false);
 
@@ -98,6 +99,7 @@ export default function ProjectSettingsPage({
         setNgSheetUrl(data.ngSheetUrl ?? "");
         setCompanyRegulations(data.companyRegulations ?? "");
         setCompanyFileName(data.companyRegulationsFileName ?? null);
+        setCheckMode(data.checkMode ?? "soft");
         setNgCases(data.ngCases ?? []);
         setAllowedCases(data.allowedCases ?? []);
         setLoading(false);
@@ -109,7 +111,7 @@ export default function ProjectSettingsPage({
     const res = await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, clientName, description }),
+      body: JSON.stringify({ name, clientName, description, checkMode }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -388,6 +390,25 @@ export default function ProjectSettingsPage({
                 className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 focus:border-violet-500 focus:outline-none transition-colors resize-none text-sm" />
             </div>
           </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-2">AIチェックモード</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCheckMode("soft")}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold border transition-colors ${checkMode === "soft" ? "bg-green-500/20 text-green-300 border-green-500/40" : "border-white/10 text-gray-400 hover:border-white/20"}`}
+                >
+                  ソフト（推奨）<span className="block text-xs font-normal mt-0.5 opacity-70">企業レギュ・NG事例主体。法令は独自解釈しない</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckMode("hard")}
+                  className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold border transition-colors ${checkMode === "hard" ? "bg-orange-500/20 text-orange-300 border-orange-500/40" : "border-white/10 text-gray-400 hover:border-white/20"}`}
+                >
+                  ハード<span className="block text-xs font-normal mt-0.5 opacity-70">薬機法・景品表示法も含めて厳しくチェック</span>
+                </button>
+              </div>
+            </div>
           <button onClick={saveInfo} disabled={savingInfo || !name.trim()}
             className="mt-4 px-5 py-2 rounded-xl text-sm font-semibold bg-violet-500 hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
             {infoSaved ? "✓ 保存しました" : savingInfo ? "保存中..." : "保存"}

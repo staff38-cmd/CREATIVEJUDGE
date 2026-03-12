@@ -52,6 +52,7 @@ function toProject(row: PrismaProject): Project {
     companyRegulationsFileContent: row.companyRegulationsFileContent ?? undefined,
     ngCases: (row.ngCases as unknown as NgCase[]) ?? [],
     allowedCases: (row.allowedCases as unknown as AllowedCase[]) ?? [],
+    checkMode: ((row as unknown as { checkMode?: string }).checkMode as "soft" | "hard") ?? "soft",
   };
 }
 
@@ -145,11 +146,12 @@ export async function saveProject(project: Project): Promise<void> {
     ngCases: (project.ngCases ?? []) as unknown as object[],
     allowedCases: (project.allowedCases ?? []) as unknown as object[],
   };
+  const dataWithMode = { ...data, checkMode: project.checkMode ?? "soft" };
   await prisma.project.upsert({
     where: { id: project.id },
-    create: { id: project.id, ...data },
-    update: data,
-  });
+    create: { id: project.id, ...dataWithMode },
+    update: dataWithMode,
+  } as Parameters<typeof prisma.project.upsert>[0]);
 }
 
 export async function deleteProject(id: string): Promise<boolean> {
