@@ -290,13 +290,15 @@ function IssueCard({
   const [okReason, setOkReason] = useState("");
   const [okSaving, setOkSaving] = useState(false);
   const [okDone, setOkDone] = useState(false);
+  const [okError, setOkError] = useState("");
 
   async function handleMarkAsOk() {
     if (!projectId || !okReason.trim()) return;
     setOkSaving(true);
+    setOkError("");
     try {
-      // まず現在のプロジェクトを取得して allowedCases を更新
       const projRes = await fetch(`/api/projects/${projectId}`);
+      if (!projRes.ok) { setOkError("案件の取得に失敗しました"); return; }
       const project = await projRes.json();
       const newCase = {
         id: crypto.randomUUID(),
@@ -306,13 +308,16 @@ function IssueCard({
         addedAt: new Date().toISOString(),
       };
       const updatedAllowedCases = [...(project.allowedCases ?? []), newCase];
-      await fetch(`/api/projects/${projectId}`, {
+      const patchRes = await fetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ allowedCases: updatedAllowedCases }),
       });
+      if (!patchRes.ok) { setOkError("保存に失敗しました"); return; }
       setOkDone(true);
       setMarkingOk(false);
+    } catch {
+      setOkError("ネットワークエラーが発生しました");
     } finally {
       setOkSaving(false);
     }
@@ -391,6 +396,9 @@ function IssueCard({
                     className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-green-500/50"
                     rows={2}
                   />
+                  {okError && (
+                    <p className="text-xs text-red-400">{okError}</p>
+                  )}
                   <div className="flex gap-2">
                     <button
                       onClick={handleMarkAsOk}
@@ -400,7 +408,7 @@ function IssueCard({
                       {okSaving ? "登録中..." : "登録する"}
                     </button>
                     <button
-                      onClick={() => { setMarkingOk(false); setOkReason(""); }}
+                      onClick={() => { setMarkingOk(false); setOkReason(""); setOkError(""); }}
                       className="text-xs px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-300 transition-colors"
                     >
                       キャンセル
