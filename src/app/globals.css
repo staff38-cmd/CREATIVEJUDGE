@@ -11,31 +11,141 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-/* ライトモードのオーバーライド */
+/* =============================================
+   ライトモード
+   ============================================= */
 html.light {
   color-scheme: light;
 }
+
+/* ベース */
 html.light body {
   background-color: #f0f2f8 !important;
   color: #1e293b !important;
 }
-html.light nav, html.light [class*="bg-black\/40"], html.light [class*="bg-black/40"] {
-  background-color: rgba(255, 255, 255, 0.95) !important;
+
+/* ナビ・フッター */
+html.light nav,
+html.light [class*="bg-black\/40"],
+html.light [class*="bg-black/40"] {
+  background-color: rgba(255, 255, 255, 0.97) !important;
   border-color: rgba(0, 0, 0, 0.1) !important;
 }
-html.light .text-white { color: #0f172a !important; }
-html.light .text-gray-400 { color: #4b5563 !important; }
-html.light .text-gray-500 { color: #6b7280 !important; }
-html.light .text-gray-600 { color: #374151 !important; }
-html.light .text-gray-700 { color: #374151 !important; }
-html.light [class*="bg-white\/5"] { background-color: rgba(0,0,0,0.04) !important; }
-html.light [class*="bg-white\/10"] { background-color: rgba(0,0,0,0.07) !important; }
-html.light [class*="bg-black\/20"] { background-color: rgba(0,0,0,0.05) !important; }
-html.light [class*="border-white\/10"] { border-color: rgba(0,0,0,0.1) !important; }
-html.light [class*="border-white\/20"] { border-color: rgba(0,0,0,0.15) !important; }
 html.light footer {
   background-color: #e8eaf2 !important;
-  border-color: rgba(0,0,0,0.1) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
 }
-html.light footer .text-gray-600 { color: #4b5563 !important; }
-html.light footer .text-gray-700 { color: #6b7280 !important; }
+
+/* テキスト */
+html.light .text-white          { color: #0f172a !important; }
+html.light .text-gray-100       { color: #1e293b !important; }
+html.light .text-gray-200       { color: #1f2937 !important; }
+html.light .text-gray-300       { color: #374151 !important; }
+html.light .text-gray-400       { color: #4b5563 !important; }
+html.light .text-gray-500       { color: #6b7280 !important; }
+html.light .text-gray-600       { color: #374151 !important; }
+html.light .text-gray-700       { color: #374151 !important; }
+
+/* フォーム要素（select/input/textarea）*/
+html.light input,
+html.light textarea,
+html.light select {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border-color: rgba(0, 0, 0, 0.18) !important;
+}
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #9ca3af !important;
+}
+html.light input:focus,
+html.light textarea:focus,
+html.light select:focus {
+  border-color: #7c3aed !important;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.15) !important;
+  outline: none !important;
+}
+/* select の option */
+html.light option {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+}
+
+/* カード・セクション背景 */
+html.light [class*="bg-white\/5"]  { background-color: rgba(0, 0, 0, 0.04) !important; }
+html.light [class*="bg-white\/8"]  { background-color: rgba(0, 0, 0, 0.05) !important; }
+html.light [class*="bg-white\/10"] { background-color: rgba(0, 0, 0, 0.06) !important; }
+html.light [class*="bg-white\/20"] { background-color: rgba(0, 0, 0, 0.10) !important; }
+html.light [class*="bg-black\/20"] { background-color: rgba(0, 0, 0, 0.05) !important; }
+html.light [class*="bg-black\/30"] { background-color: rgba(0, 0, 0, 0.06) !important; }
+html.light [class*="bg-black\/40"] { background-color: rgba(0, 0, 0, 0.07) !important; }
+
+/* ボーダー */
+html.light [class*="border-white\/5"]  { border-color: rgba(0, 0, 0, 0.07) !important; }
+html.light [class*="border-white\/10"] { border-color: rgba(0, 0, 0, 0.10) !important; }
+html.light [class*="border-white\/20"] { border-color: rgba(0, 0, 0, 0.15) !important; }
+html.light [class*="border-white\/30"] { border-color: rgba(0, 0, 0, 0.20) !important; }
+html.light [class*="border-white\/40"] { border-color: rgba(0, 0, 0, 0.25) !important; }
+
+/* ボタン（bg-white/5, bg-white/10 系）*/
+html.light button[class*="bg-white\/5"],
+html.light a[class*="bg-white\/5"] {
+  background-color: rgba(0, 0, 0, 0.06) !important;
+  color: #374151 !important;
+}
+html.light button[class*="bg-white\/10"],
+html.light a[class*="bg-white\/10"] {
+  background-color: rgba(0, 0, 0, 0.08) !important;
+  color: #374151 !important;
+}
+html.light button[class*="border-white\/10"],
+html.light a[class*="border-white\/10"] {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #374151 !important;
+}
+html.light button[class*="border-white\/20"],
+html.light a[class*="border-white\/20"] {
+  border-color: rgba(0, 0, 0, 0.18) !important;
+  color: #374151 !important;
+}
+
+/* hover 状態 */
+html.light [class*="hover:bg-white\/5"]:hover  { background-color: rgba(0, 0, 0, 0.06) !important; }
+html.light [class*="hover:bg-white\/10"]:hover { background-color: rgba(0, 0, 0, 0.08) !important; }
+
+/* グラデーションボタン（violet/pink）はそのまま */
+html.light [class*="from-violet-"] { color: #ffffff !important; }
+
+/* ステータスバッジ・タグ類（色付き）はそのまま維持 */
+html.light .text-violet-300,
+html.light .text-violet-400 { color: #6d28d9 !important; }
+html.light .text-blue-300,
+html.light .text-blue-400   { color: #1d4ed8 !important; }
+html.light .text-green-300,
+html.light .text-green-400  { color: #15803d !important; }
+html.light .text-red-300,
+html.light .text-red-400    { color: #b91c1c !important; }
+html.light .text-yellow-300,
+html.light .text-yellow-400 { color: #b45309 !important; }
+html.light .text-orange-300,
+html.light .text-orange-400 { color: #c2410c !important; }
+html.light .text-pink-300,
+html.light .text-pink-400   { color: #9d174d !important; }
+
+/* セクション背景（色付き）の文字は暗くする */
+html.light [class*="bg-violet-500\/5"],
+html.light [class*="bg-blue-500\/5"],
+html.light [class*="bg-red-500\/5"],
+html.light [class*="bg-green-500\/5"] {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* アコーディオン・カード内の pre/code */
+html.light pre,
+html.light code {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: #1e293b !important;
+}
+
+/* font-mono のテキスト */
+html.light .font-mono { color: #374151 !important; }
