@@ -39,3 +39,5 @@ next-env.d.ts
 
 # data (keep directory, ignore json files)
 /data/*.json
+
+/src/generated/prisma

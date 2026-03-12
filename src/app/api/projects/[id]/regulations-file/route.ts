@@ -6,7 +6,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = getProject(id);
+  const project = await getProject(id);
   if (!project) {
     return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
@@ -22,7 +22,7 @@ export async function POST(
 
   project.companyRegulationsFileName = fileName;
   project.companyRegulationsFileContent = extractedText;
-  saveProject(project);
+  await saveProject(project);
 
   return NextResponse.json({
     success: true,
@@ -37,14 +37,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = getProject(id);
+  const project = await getProject(id);
   if (!project) {
     return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
 
   project.companyRegulationsFileName = undefined;
   project.companyRegulationsFileContent = undefined;
-  saveProject(project);
+  await saveProject(project);
 
   return NextResponse.json({ success: true });
 }

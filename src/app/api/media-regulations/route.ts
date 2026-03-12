@@ -4,7 +4,7 @@ import { MediaRegulations } from "@/lib/types";
 
 export async function GET() {
   try {
-    const regs = getMediaRegulations();
+    const regs = await getMediaRegulations();
     return NextResponse.json(regs);
   } catch {
     return NextResponse.json({ error: "取得に失敗しました" }, { status: 500 });
@@ -14,7 +14,7 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json() as MediaRegulations;
-    saveMediaRegulations(body);
+    await saveMediaRegulations(body);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "保存に失敗しました" }, { status: 500 });

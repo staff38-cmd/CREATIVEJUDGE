@@ -6,7 +6,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = getProject(id);
+  const project = await getProject(id);
   if (!project) {
     return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
@@ -18,7 +18,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const project = getProject(id);
+  const project = await getProject(id);
   if (!project) {
     return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }
@@ -35,7 +35,7 @@ export async function PATCH(
   if (sheetUrl !== undefined) project.sheetUrl = sheetUrl?.trim() || undefined;
   if (ngSheetUrl !== undefined) project.ngSheetUrl = ngSheetUrl?.trim() || undefined;
 
-  saveProject(project);
+  await saveProject(project);
   return NextResponse.json(project);
 }
 
@@ -44,7 +44,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const deleted = deleteProject(id);
+  const deleted = await deleteProject(id);
   if (!deleted) {
     return NextResponse.json({ error: "案件が見つかりません" }, { status: 404 });
   }

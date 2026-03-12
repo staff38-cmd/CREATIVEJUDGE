@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Work {
+  id                 String   @id @default(uuid())
+  title              String
+  contentType        String
+  // File-based content
+  fileName           String?
+  fileType           String?
+  fileSize           Int?
+  filePath           String?
+  // Text-based content
+  textContent        String?  @db.Text
+  // URL-based content
+  sourceUrl          String?
+  submittedAt        String
+  complianceResult   Json?
+  customRegulations  String?  @db.Text
+  targetCategory     String?
+  projectId          String?
+  media              String?
+
+  project            Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([submittedAt])
+}
+
+model Project {
+  id                            String   @id @default(uuid())
+  name                          String
+  clientName                    String?
+  description                   String?  @db.Text
+  createdAt                     String
+  sheetUrl                      String?
+  ngSheetUrl                    String?
+  companyRegulations             String?  @db.Text
+  companyRegulationsFileName     String?
+  companyRegulationsFileContent  String?  @db.Text
+  ngCases                       Json     @default("[]")
+  allowedCases                  Json     @default("[]")
+
+  works                         Work[]
+}
+
+model ChecklistSession {
+  id            String   @id @default(uuid())
+  projectId     String?
+  projectName   String?
+  media         String
+  crType        String
+  checkerName   String
+  reviewerName  String?
+  checkResults  Json     @default("[]")
+  status        String   @default("draft")
+  note          String?  @db.Text
+  createdAt     String
+  updatedAt     String
+}
+
+model MediaRegulation {
+  media   String @id
+  content String @db.Text
+}

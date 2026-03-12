@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const work = getWork(id);
+  const work = await getWork(id);
   if (!work) {
     return NextResponse.json({ error: "作品が見つかりません" }, { status: 404 });
   }
@@ -20,7 +20,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const work = getWork(id);
+  const work = await getWork(id);
   if (!work) {
     return NextResponse.json({ error: "作品が見つかりません" }, { status: 404 });
   }
@@ -32,6 +32,6 @@ export async function DELETE(
     }
   }
 
-  deleteWork(id);
+  await deleteWork(id);
   return NextResponse.json({ success: true });
 }

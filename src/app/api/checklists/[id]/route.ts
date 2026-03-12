@@ -7,7 +7,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const session = getChecklist(id);
+  const session = await getChecklist(id);
   if (!session) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -19,7 +19,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const session = getChecklist(id);
+  const session = await getChecklist(id);
   if (!session) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -43,7 +43,7 @@ export async function PUT(
   if (note !== undefined) session.note = note;
   session.updatedAt = new Date().toISOString();
 
-  saveChecklist(session);
+  await saveChecklist(session);
   return NextResponse.json(session);
 }
 
@@ -52,7 +52,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const ok = deleteChecklist(id);
+  const ok = await deleteChecklist(id);
   if (!ok) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

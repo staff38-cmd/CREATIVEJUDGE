@@ -4,7 +4,7 @@ import { getAllProjects, saveProject } from "@/lib/storage";
 import { Project } from "@/lib/types";
 
 export async function GET() {
-  const projects = getAllProjects();
+  const projects = await getAllProjects();
   projects.sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
@@ -27,6 +27,6 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   };
 
-  saveProject(project);
+  await saveProject(project);
   return NextResponse.json(project, { status: 201 });
 }

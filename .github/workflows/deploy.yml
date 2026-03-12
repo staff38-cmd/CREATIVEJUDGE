@@ -19,6 +19,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Build
         run: npm run build
         env:
@@ -35,7 +38,9 @@ jobs:
         run: |
           rsync -az --delete .next/ ubuntu@${{ secrets.SERVER_IP }}:~/app/.next/
           rsync -az package.json package-lock.json ubuntu@${{ secrets.SERVER_IP }}:~/app/
+          rsync -az prisma/ ubuntu@${{ secrets.SERVER_IP }}:~/app/prisma/
+          rsync -az prisma.config.ts ubuntu@${{ secrets.SERVER_IP }}:~/app/
 
-      - name: Install runtime deps & restart pm2
+      - name: Install runtime deps, migrate DB & restart pm2
         run: |
-          ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/app && npm ci --omit=dev --prefer-offline && pm2 restart all --update-env"
+          ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/app && npm ci --omit=dev --prefer-offline && DATABASE_URL='${{ secrets.DATABASE_URL }}' npx prisma db push --skip-generate && pm2 restart all --update-env"

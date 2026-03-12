@@ -44,14 +44,12 @@ function extractTextFromHtml(html: string): string {
 }
 
 export async function GET() {
-  const works = getAllWorks();
-  const projects = getAllProjects();
-  const summaries = works
-    .map((w) => toSummary(w, projects))
-    .sort(
-      (a, b) =>
-        new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-    );
+  const [works, projects] = await Promise.all([getAllWorks(), getAllProjects()]);
+  const summaries = await Promise.all(works.map((w) => toSummary(w, projects)));
+  summaries.sort(
+    (a, b) =>
+      new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+  );
   return NextResponse.json(summaries);
 }
 
@@ -174,7 +172,7 @@ export async function POST(req: NextRequest) {
         submittedAt: new Date().toISOString(),
       };
 
-      saveWork(work);
+      await saveWork(work);
       return NextResponse.json({ id: work.id }, { status: 201 });
     }
 
@@ -194,7 +192,7 @@ export async function POST(req: NextRequest) {
       submittedAt: new Date().toISOString(),
     };
 
-    saveWork(work);
+    await saveWork(work);
     return NextResponse.json({ id: work.id }, { status: 201 });
   }
 
@@ -241,6 +239,6 @@ export async function POST(req: NextRequest) {
     submittedAt: new Date().toISOString(),
   };
 
-  saveWork(work);
+  await saveWork(work);
   return NextResponse.json({ id: work.id }, { status: 201 });
 }

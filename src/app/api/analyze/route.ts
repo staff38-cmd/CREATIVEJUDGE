@@ -91,19 +91,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "workId が必要です" }, { status: 400 });
   }
 
-  const work = getWork(workId);
+  const work = await getWork(workId);
   if (!work) {
     return NextResponse.json({ error: "コンテンツが見つかりません" }, { status: 404 });
   }
 
   // Fetch project knowledge if the work belongs to a project
-  const project = work.projectId ? getProject(work.projectId) : null;
+  const project = work.projectId ? await getProject(work.projectId) : null;
 
   // Fetch media-specific regulations if media is specified
   const selectedMedia = media || work.media;
   let mediaRegulationNote: string | undefined;
   if (selectedMedia) {
-    const allMediaRegs = getMediaRegulations();
+    const allMediaRegs = await getMediaRegulations();
     const reg = allMediaRegs[selectedMedia];
     if (reg) {
       mediaRegulationNote = `${selectedMedia}広告ガイドライン準拠でチェック:\n${reg}`;
@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
   }
 
   work.complianceResult = complianceResult;
-  saveWork(work);
+  await saveWork(work);
 
   return NextResponse.json({ complianceResult });
 }

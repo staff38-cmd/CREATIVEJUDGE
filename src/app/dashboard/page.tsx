@@ -1,13 +1,17 @@
 "use server";
 
+export const dynamic = "force-dynamic";
+
 import Link from "next/link";
 import { getAllWorks, getAllChecklists, getAllProjects } from "@/lib/storage";
 import { ComplianceIssue } from "@/lib/types";
 
 export default async function DashboardPage() {
-  const works = getAllWorks();
-  const checklists = getAllChecklists();
-  const projects = getAllProjects();
+  const [works, checklists, projects] = await Promise.all([
+    getAllWorks(),
+    getAllChecklists(),
+    getAllProjects(),
+  ]);
 
   // ===== 集計ロジック =====
 

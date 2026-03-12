@@ -9,7 +9,7 @@ import { ChecklistSession, MediaType, CrType } from "@/lib/types";
 import { getChecklistItems } from "@/lib/checklistTemplates";
 
 export async function GET() {
-  const checklists = getAllChecklists();
+  const checklists = await getAllChecklists();
   const summaries = checklists.map(toChecklistSummary);
   // 新しい順にソート
   summaries.sort(
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   // プロジェクト名を解決
   let projectName: string | undefined;
   if (projectId) {
-    const projects = getAllProjects();
+    const projects = await getAllProjects();
     const project = projects.find((p) => p.id === projectId);
     projectName = project?.name;
   }
@@ -63,6 +63,6 @@ export async function POST(req: NextRequest) {
     updatedAt: now,
   };
 
-  saveChecklist(session);
+  await saveChecklist(session);
   return NextResponse.json(session, { status: 201 });
 }
