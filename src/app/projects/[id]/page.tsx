@@ -495,15 +495,21 @@ export default function ProjectSettingsPage({
         </section>
 
         {/* NG事例ナレッジ */}
-        <section className="p-6 rounded-2xl border border-red-500/20 bg-red-500/5">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <h2 className="text-lg font-bold">過去のNG事例ナレッジ</h2>
-              <p className="text-sm text-gray-400 mt-1">過去に指摘・修正したNG事例を登録。AIチェック時に「この案件での前例」として参照されます。</p>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">AI参照</span>
-          </div>
-
+        <CollapsibleKnowledge
+          title="過去のNG事例ナレッジ"
+          description="過去に指摘・修正したNG事例を登録。AIチェック時に参照されます。"
+          count={ngCases.length}
+          borderColor="border-red-500/20"
+          bgColor="bg-red-500/5"
+          addButton={
+            !showNgForm ? (
+              <button onClick={() => setShowNgForm(true)}
+                className="mt-4 w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-red-500/40 hover:bg-red-500/5 text-gray-400 hover:text-red-300 transition-all">
+                ＋ NG事例を追加
+              </button>
+            ) : null
+          }
+        >
           {showNgForm ? (
             <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/20 space-y-3">
               <p className="text-sm font-medium text-gray-300">新しいNG事例を追加</p>
@@ -551,29 +557,32 @@ export default function ProjectSettingsPage({
 
           {ngCases.length > 0 && (
             <div className="mt-4 space-y-3">
-              <p className="text-xs text-gray-500">{ngCases.length} 件のNG事例が登録されています</p>
               {ngCases.map((c) => (
                 <NgCaseCard key={c.id} ngCase={c} onDelete={() => deleteNgCase(c.id)} />
               ))}
             </div>
           )}
           {ngCases.length === 0 && !showNgForm && (
-            <p className="mt-4 text-center text-sm text-gray-600 py-6">NG事例はまだ登録されていません</p>
+            <p className="text-center text-sm text-gray-600 py-4">NG事例はまだ登録されていません</p>
           )}
-        </section>
+        </CollapsibleKnowledge>
 
         {/* 許容表現ナレッジ */}
-        <section className="p-6 rounded-2xl border border-green-500/20 bg-green-500/5">
-          <div className="flex items-start justify-between mb-2">
-            <div>
-              <h2 className="text-lg font-bold">許容表現ナレッジ</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                薬機法的にグレーに見えても、この案件・クライアントで使用が確認・承認された表現。AIが過剰にNGと判定するのを防ぎます。
-              </p>
-            </div>
-            <span className="text-xs px-2 py-1 rounded-full border border-green-500/30 bg-green-500/10 text-green-300 flex-shrink-0">AI参照</span>
-          </div>
-
+        <CollapsibleKnowledge
+          title="許容表現ナレッジ"
+          description="グレーに見えても承認済みの表現。AIの過剰NG判定を防ぎます。"
+          count={allowedCases.length}
+          borderColor="border-green-500/20"
+          bgColor="bg-green-500/5"
+          addButton={
+            !showAllowedForm ? (
+              <button onClick={() => setShowAllowedForm(true)}
+                className="mt-4 w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-green-500/40 hover:bg-green-500/5 text-gray-400 hover:text-green-300 transition-all">
+                ＋ 許容表現を追加
+              </button>
+            ) : null
+          }
+        >
           {showAllowedForm ? (
             <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/20 space-y-3">
               <p className="text-sm font-medium text-gray-300">許容表現を追加</p>
@@ -607,18 +616,72 @@ export default function ProjectSettingsPage({
 
           {allowedCases.length > 0 && (
             <div className="mt-4 space-y-3">
-              <p className="text-xs text-gray-500">{allowedCases.length} 件の許容表現が登録されています</p>
               {allowedCases.map((c) => (
                 <AllowedCaseCard key={c.id} allowedCase={c} onDelete={() => deleteAllowedCase(c.id)} />
               ))}
             </div>
           )}
           {allowedCases.length === 0 && !showAllowedForm && (
-            <p className="mt-4 text-center text-sm text-gray-600 py-6">許容表現はまだ登録されていません</p>
+            <p className="text-center text-sm text-gray-600 py-4">許容表現はまだ登録されていません</p>
           )}
-        </section>
+        </CollapsibleKnowledge>
       </div>
     </div>
+  );
+}
+
+function CollapsibleKnowledge({
+  title,
+  description,
+  count,
+  borderColor,
+  bgColor,
+  addButton,
+  children,
+}: {
+  title: string;
+  description: string;
+  count: number;
+  borderColor: string;
+  bgColor: string;
+  addButton: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className={`rounded-2xl border ${borderColor} ${bgColor}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between p-6 text-left"
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold">{title}</h2>
+            {count > 0 && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-400 font-medium">
+                {count} 件
+              </span>
+            )}
+            <span className="text-xs px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300">AI参照</span>
+          </div>
+          <p className="text-sm text-gray-400 mt-0.5">{description}</p>
+        </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className={`w-5 h-5 text-gray-500 flex-shrink-0 ml-4 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-6 pb-6">
+          {children}
+          {addButton}
+        </div>
+      )}
+    </section>
   );
 }
 
