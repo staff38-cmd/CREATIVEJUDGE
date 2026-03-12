@@ -65,7 +65,7 @@ if (existsSync(worksFile)) {
         w.submittedAt,
         w.complianceResult ? JSON.stringify(w.complianceResult) : null,
         w.customRegulations ?? null, w.targetCategory ?? null,
-        w.projectId ?? null, w.media ?? null,
+        w.projectId || null, w.media || null,
       ]
     );
     workCount++;
