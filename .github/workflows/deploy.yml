@@ -40,6 +40,7 @@ jobs:
           rsync -az package.json package-lock.json ubuntu@${{ secrets.SERVER_IP }}:~/app/
           rsync -az prisma/ ubuntu@${{ secrets.SERVER_IP }}:~/app/prisma/
           rsync -az prisma.config.ts ubuntu@${{ secrets.SERVER_IP }}:~/app/
+          rsync -az scripts/ ubuntu@${{ secrets.SERVER_IP }}:~/app/scripts/
 
       - name: Install runtime deps, migrate DB & restart pm2
         run: |
