@@ -253,6 +253,7 @@ export default function WorkDetailPage({ params }: { params: Promise<{ id: strin
                   index={idx}
                   expanded={expandedIssue === idx}
                   onToggle={() => setExpandedIssue(expandedIssue === idx ? null : idx)}
+                  projectId={work.projectId}
                 />
               ))}
             </div>
@@ -276,13 +277,46 @@ function IssueCard({
   index,
   expanded,
   onToggle,
+  projectId,
 }: {
   issue: ComplianceIssue;
   index: number;
   expanded: boolean;
   onToggle: () => void;
+  projectId?: string;
 }) {
   const style = RISK_STYLES[issue.level];
+  const [markingOk, setMarkingOk] = useState(false);
+  const [okReason, setOkReason] = useState("");
+  const [okSaving, setOkSaving] = useState(false);
+  const [okDone, setOkDone] = useState(false);
+
+  async function handleMarkAsOk() {
+    if (!projectId || !okReason.trim()) return;
+    setOkSaving(true);
+    try {
+      // まず現在のプロジェクトを取得して allowedCases を更新
+      const projRes = await fetch(`/api/projects/${projectId}`);
+      const project = await projRes.json();
+      const newCase = {
+        id: crypto.randomUUID(),
+        title: issue.title,
+        description: okReason.trim(),
+        quote: issue.quote,
+        addedAt: new Date().toISOString(),
+      };
+      const updatedAllowedCases = [...(project.allowedCases ?? []), newCase];
+      await fetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowedCases: updatedAllowedCases }),
+      });
+      setOkDone(true);
+      setMarkingOk(false);
+    } finally {
+      setOkSaving(false);
+    }
+  }
 
   return (
     <div className={`rounded-2xl border ${style.border} ${style.bg} overflow-hidden`}>
@@ -301,6 +335,11 @@ function IssueCard({
             </span>
             {issue.clause && (
               <span className="text-xs text-gray-500">{issue.clause}</span>
+            )}
+            {okDone && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-bold">
+                ✅ 許容ルール登録済
+              </span>
             )}
           </div>
           <p className="font-semibold text-sm">{issue.title}</p>
@@ -328,6 +367,49 @@ function IssueCard({
               {issue.suggestion}
             </p>
           </div>
+
+          {/* 許容ルール登録エリア */}
+          {projectId && !okDone && (
+            <div className="pt-1">
+              {!markingOk ? (
+                <button
+                  onClick={() => setMarkingOk(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-green-500/40 text-green-400 hover:bg-green-500/10 transition-colors"
+                >
+                  ✅ 実際はOKだった → 許容ルールに登録
+                </button>
+              ) : (
+                <div className="rounded-xl border border-green-500/30 bg-green-500/5 p-3 space-y-2">
+                  <p className="text-xs text-green-400 font-bold">許容ルールに登録</p>
+                  <p className="text-xs text-gray-500">
+                    表現: {issue.quote ? `「${issue.quote}」` : issue.title}
+                  </p>
+                  <textarea
+                    value={okReason}
+                    onChange={(e) => setOkReason(e.target.value)}
+                    placeholder="なぜOKか・どんな条件でOKか（例: クライアント確認済み、独自成分名を明記すればOK）"
+                    className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-green-500/50"
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleMarkAsOk}
+                      disabled={okSaving || !okReason.trim()}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 disabled:opacity-40 transition-colors font-bold"
+                    >
+                      {okSaving ? "登録中..." : "登録する"}
+                    </button>
+                    <button
+                      onClick={() => { setMarkingOk(false); setOkReason(""); }}
+                      className="text-xs px-3 py-1.5 rounded-lg text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
