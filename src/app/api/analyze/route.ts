@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     companyRegulationsFileName: project?.companyRegulationsFileName,
     productDetails: project?.productDetails,
     productDetailsFileName: project?.productDetailsFileName,
-    projectNgCases: project?.ngCases,
+    projectNgCases: filterNgCasesForPrompt(work.textContent, project?.ngCases ?? []),
     projectAllowedCases: project?.allowedCases,
     mediaRegulationNote,
     selectedMedia,
@@ -258,6 +258,43 @@ export async function POST(req: NextRequest) {
 }
 
 /** 過去NG事例のquoteとテキストを直接照合してissueを生成する */
+/**
+ * チェック対象テキストとキーワードが被るNG事例だけ絞り込む（最大 MAX_NG_FOR_PROMPT 件）
+ * 一致度スコアで上位を選ぶ
+ */
+const MAX_NG_FOR_PROMPT = 40;
+
+function extractKeywords(text: string): string[] {
+  // 2文字以上の連続した非スペース・非記号のかたまりをキーワードとして抽出
+  return Array.from(new Set(
+    (text.match(/[\u3040-\u9FFF\uFF00-\uFFEFa-zA-Z0-9]{2,}/g) ?? [])
+      .map(w => w.toLowerCase())
+      .filter(w => w.length >= 2)
+  ));
+}
+
+function filterNgCasesForPrompt(textContent: string | undefined, ngCases: NgCase[]): NgCase[] {
+  if (!textContent || ngCases.length <= MAX_NG_FOR_PROMPT) return ngCases;
+
+  const contentKeywords = extractKeywords(textContent);
+  if (contentKeywords.length === 0) return ngCases.slice(0, MAX_NG_FOR_PROMPT);
+
+  const scored = ngCases.map(c => {
+    const caseText = [c.title, c.description, c.quote, c.category].filter(Boolean).join(" ");
+    const caseKeywords = extractKeywords(caseText);
+    const overlap = caseKeywords.filter(k => contentKeywords.some(ck => ck.includes(k) || k.includes(ck))).length;
+    return { c, overlap };
+  });
+
+  // 一致度が高い順にソート、0件でも最低10件は含める
+  scored.sort((a, b) => b.overlap - a.overlap);
+  const withOverlap = scored.filter(s => s.overlap > 0).slice(0, MAX_NG_FOR_PROMPT);
+  if (withOverlap.length < 10) {
+    return scored.slice(0, MAX_NG_FOR_PROMPT).map(s => s.c);
+  }
+  return withOverlap.map(s => s.c);
+}
+
 function detectNgMatches(textContent: string, ngCases: NgCase[]): ComplianceIssue[] {
   const issues: ComplianceIssue[] = [];
   const seen = new Set<string>();
