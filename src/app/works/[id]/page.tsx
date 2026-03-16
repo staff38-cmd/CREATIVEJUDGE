@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import { v4 as uuidv4 } from "uuid";
 import Image from "next/image";
 import Link from "next/link";
 import { Work, ComplianceIssue, RiskLevel, CONTENT_TYPE_LABELS, RISK_LEVEL_LABELS } from "@/lib/types";
@@ -301,7 +302,7 @@ function IssueCard({
       if (!projRes.ok) { setOkError("案件の取得に失敗しました"); return; }
       const project = await projRes.json();
       const newCase = {
-        id: crypto.randomUUID(),
+        id: uuidv4(),
         title: issue.title,
         description: okReason.trim(),
         quote: issue.quote,
@@ -316,8 +317,8 @@ function IssueCard({
       if (!patchRes.ok) { setOkError("保存に失敗しました"); return; }
       setOkDone(true);
       setMarkingOk(false);
-    } catch (err) {
-      setOkError("エラー: " + (err instanceof Error ? err.message : String(err)));
+    } catch {
+      setOkError("ネットワークエラーが発生しました");
     } finally {
       setOkSaving(false);
     }
