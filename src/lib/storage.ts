@@ -56,6 +56,7 @@ function toProject(row: PrismaProject): Project {
     ngCases: (row.ngCases as unknown as NgCase[]) ?? [],
     allowedCases: (row.allowedCases as unknown as AllowedCase[]) ?? [],
     checkMode: ((row as unknown as { checkMode?: string }).checkMode as "soft" | "hard") ?? "soft",
+    ngSheetFormat: ((row as unknown as { ngSheetFormat?: string }).ngSheetFormat as "rl" | "free") ?? "rl",
     clientId: (row as unknown as { clientId?: string | null }).clientId ?? undefined,
     client: (row as unknown as { client?: { id: string; name: string; companyRegulations: string | null; createdAt: string } | null }).client
       ? (() => {
@@ -168,6 +169,7 @@ export async function saveProject(project: Project): Promise<void> {
     clientId: project.clientId ?? null,
     productDetails: project.productDetails ?? null,
     productDetailsFileName: project.productDetailsFileName ?? null,
+    ngSheetFormat: project.ngSheetFormat ?? "rl",
   };
   await prisma.project.upsert({
     where: { id: project.id },

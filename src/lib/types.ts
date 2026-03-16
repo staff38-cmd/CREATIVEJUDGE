@@ -33,6 +33,8 @@ export interface Project {
   // クライアント紐付け
   clientId?: string;
   client?: Client;
+  // NG集シートフォーマット: "rl"=アール形式 | "free"=汎用（全テキストセル取込）
+  ngSheetFormat?: "rl" | "free";
 }
 
 export interface NgCase {

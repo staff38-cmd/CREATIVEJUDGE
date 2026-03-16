@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProject, saveProject } from "@/lib/storage";
-import { fetchNgRowsFromSheet, convertToNgCases } from "@/lib/sheets";
+import { fetchNgRowsFromSheet, convertToNgCases, fetchNgRowsFree } from "@/lib/sheets";
 
 export async function POST(
   req: NextRequest,
@@ -19,16 +19,26 @@ export async function POST(
     return NextResponse.json({ error: "NG集シートのURLが設定されていません" }, { status: 400 });
   }
 
+  const format = project.ngSheetFormat ?? "rl";
+
   try {
-    const rows = await fetchNgRowsFromSheet(targetUrl);
-    if (rows.length === 0) {
-      return NextResponse.json({
-        imported: 0,
-        message: "指摘内容のある行が見つかりませんでした。シートの構成・タブ名（「テキスト」「画像」「動画」を含むタブ名）を確認してください。",
-      });
+    let newCases;
+    if (format === "free") {
+      newCases = await fetchNgRowsFree(targetUrl);
+    } else {
+      const rows = await fetchNgRowsFromSheet(targetUrl);
+      if (rows.length === 0) {
+        return NextResponse.json({
+          imported: 0,
+          message: "指摘内容のある行が見つかりませんでした。シートの構成・タブ名（「テキスト」「画像」「動画」を含むタブ名）を確認してください。",
+        });
+      }
+      newCases = convertToNgCases(rows);
     }
 
-    const newCases = convertToNgCases(rows);
+    if (newCases.length === 0) {
+      return NextResponse.json({ imported: 0, message: "取込対象のテキストが見つかりませんでした。" });
+    }
 
     // 既存のシート同期分を削除して上書き（手動追加分は保持）
     const existingManual = (project.ngCases ?? []).filter(

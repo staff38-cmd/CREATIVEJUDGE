@@ -50,6 +50,7 @@ export default function ProjectSettingsPage({
 
   // NG集スプレッドシート同期
   const [ngSheetUrl, setNgSheetUrl] = useState("");
+  const [ngSheetFormat, setNgSheetFormat] = useState<"rl" | "free">("rl");
   const [savingNgSheet, setSavingNgSheet] = useState(false);
   const [ngSheetSaved, setNgSheetSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -100,6 +101,7 @@ export default function ProjectSettingsPage({
       setDescription(data.description ?? "");
       setSheetUrl(data.sheetUrl ?? "");
       setNgSheetUrl(data.ngSheetUrl ?? "");
+      setNgSheetFormat(data.ngSheetFormat ?? "rl");
       setProductFileName(data.productDetailsFileName ?? null);
       setCompanyFileName(data.companyRegulationsFileName ?? null);
       setCheckMode(data.checkMode ?? "soft");
@@ -144,7 +146,7 @@ export default function ProjectSettingsPage({
     const res = await fetch(`/api/projects/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ngSheetUrl }),
+      body: JSON.stringify({ ngSheetUrl, ngSheetFormat }),
     });
     if (res.ok) {
       setNgSheetSaved(true);
@@ -578,11 +580,29 @@ export default function ProjectSettingsPage({
               <h2 className="text-lg font-bold">NG集シート同期</h2>
               <p className="text-sm text-gray-400 mt-1">
                 過去のNG事例を記録したスプレッドシートから自動インポート。
-                タブ名に「テキスト」「画像」「動画」が含まれるシートを読み取ります（ヘッダー3行目）。
               </p>
             </div>
             <span className="text-xs px-2 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300 flex-shrink-0">AI参照</span>
           </div>
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setNgSheetFormat("rl")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${ngSheetFormat === "rl" ? "bg-red-500/20 border-red-500/40 text-red-300" : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"}`}
+            >
+              アール形式
+            </button>
+            <button
+              onClick={() => setNgSheetFormat("free")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${ngSheetFormat === "free" ? "bg-red-500/20 border-red-500/40 text-red-300" : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"}`}
+            >
+              汎用形式（全テキスト取込）
+            </button>
+          </div>
+          <p className="text-xs text-gray-600 mb-3">
+            {ngSheetFormat === "rl"
+              ? "タブ名に「テキスト」「画像」「動画」を含むシートのみ対象、ヘッダー3行目、クライアント指摘列を読み取ります。"
+              : "全タブの全テキストセルを取込。フォーマット不問、空白・URL・画像ファイル名は自動スキップ。"}
+          </p>
           <div className="flex gap-2 mb-3">
             <input
               type="url"

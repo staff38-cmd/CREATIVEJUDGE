@@ -112,6 +112,48 @@ export async function fetchNgRowsFromSheet(sheetUrl: string): Promise<SheetNgRow
   return results;
 }
 
+/** 汎用モード: 全シートの全テキストセルを1件ずつNG事例として取込 */
+export async function fetchNgRowsFree(sheetUrl: string): Promise<NgCase[]> {
+  const auth = getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = extractSheetId(sheetUrl);
+
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const sheetNames = (meta.data.sheets ?? []).map((s) => s.properties?.title ?? "");
+
+  const results: NgCase[] = [];
+
+  for (const sheetName of sheetNames) {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `${sheetName}!A1:Z`,
+    });
+    const rows = (response.data.values ?? []) as string[][];
+
+    for (const row of rows) {
+      for (const cell of row) {
+        const text = String(cell ?? "").trim();
+        if (!text) continue;
+        // 短すぎる・URLだけ・画像ファイル名っぽいものはスキップ
+        if (text.length < 10) continue;
+        if (/^https?:\/\//.test(text)) continue;
+        if (/\.(png|jpg|jpeg|gif|webp)$/i.test(text)) continue;
+        if (/^スクリーンショット|^image/i.test(text)) continue;
+
+        results.push({
+          id: uuidv4(),
+          title: text.length > 50 ? text.slice(0, 50) + "…" : text,
+          description: text,
+          category: "カスタム" as const,
+          addedAt: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  return results;
+}
+
 export function convertToNgCases(rows: SheetNgRow[]): NgCase[] {
   return rows.map((row) => {
     const contentTypeLabel =

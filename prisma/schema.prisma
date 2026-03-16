@@ -59,6 +59,7 @@ model Project {
   ngCases                       Json     @default("[]")
   allowedCases                  Json     @default("[]")
   checkMode                     String   @default("soft")
+  ngSheetFormat                 String   @default("rl")
 
   client                        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
   works                         Work[]

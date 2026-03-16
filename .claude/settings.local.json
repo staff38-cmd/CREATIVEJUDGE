@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"debug: catchエラーメッセージを詳細表示:*)",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"fix: crypto.randomUUID→uuidv4に変更（HTTP環境対応）:*)",
+      "Bash(git commit -m \"chore: prisma.tsデバッグログ削除:*)",
+      "Bash(git commit -m \"feat: AIプロンプトのNG事例をキーワード一致でフィルタリング（最大40件）:*)",
+      "Bash(git commit -m \"fix: 許容ルールをNG事例より優先・直近NG事例を新しい順に処理:*)",
+      "Bash(git commit -m \"feat: NG集シートに汎用形式（全テキスト取込）モードを追加:*)"
+    ]
+  }
+}
