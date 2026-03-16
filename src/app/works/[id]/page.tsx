@@ -255,6 +255,7 @@ export default function WorkDetailPage({ params }: { params: Promise<{ id: strin
                   expanded={expandedIssue === idx}
                   onToggle={() => setExpandedIssue(expandedIssue === idx ? null : idx)}
                   projectId={work.projectId}
+                  workId={work.id}
                 />
               ))}
             </div>
@@ -279,12 +280,14 @@ function IssueCard({
   expanded,
   onToggle,
   projectId,
+  workId,
 }: {
   issue: ComplianceIssue;
   index: number;
   expanded: boolean;
   onToggle: () => void;
   projectId?: string;
+  workId?: string;
 }) {
   const style = RISK_STYLES[issue.level];
   const [markingOk, setMarkingOk] = useState(false);
@@ -307,7 +310,7 @@ function IssueCard({
         description: okReason.trim(),
         quote: issue.quote,
         addedAt: new Date().toISOString(),
-        workId: id,
+        workId: workId,
       };
       const updatedAllowedCases = [...(project.allowedCases ?? []), newCase];
       const patchRes = await fetch(`/api/projects/${projectId}`, {
