@@ -50,6 +50,7 @@ export interface AllowedCase {
   description: string; // なぜOKか・どんな条件でOKか
   quote?: string;      // 具体的な表現
   addedAt: string;
+  workId?: string;     // 登録元のチェック履歴ID
 }
 
 export type RiskLevel = "violation" | "warning" | "caution" | "ok";

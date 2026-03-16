@@ -221,16 +221,21 @@ function WorksContent() {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map((work) => (
-            <WorkRow
-              key={work.id}
-              work={work}
-              selectMode={selectMode}
-              selected={selected.has(work.id)}
-              onToggleSelect={() => toggleSelect(work.id)}
-              onDelete={() => setWorks((prev) => prev.filter((w) => w.id !== work.id))}
-            />
-          ))}
+          {filtered.map((work) => {
+            const proj = projects.find((p) => p.id === work.projectId);
+            const hasAllowedCase = proj?.allowedCases?.some((a) => a.workId === work.id) ?? false;
+            return (
+              <WorkRow
+                key={work.id}
+                work={work}
+                hasAllowedCase={hasAllowedCase}
+                selectMode={selectMode}
+                selected={selected.has(work.id)}
+                onToggleSelect={() => toggleSelect(work.id)}
+                onDelete={() => setWorks((prev) => prev.filter((w) => w.id !== work.id))}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -247,12 +252,14 @@ export default function WorksPage() {
 
 function WorkRow({
   work,
+  hasAllowedCase,
   selectMode,
   selected,
   onToggleSelect,
   onDelete,
 }: {
   work: WorkSummary;
+  hasAllowedCase: boolean;
   selectMode: boolean;
   selected: boolean;
   onToggleSelect: () => void;
@@ -298,7 +305,14 @@ function WorkRow({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold truncate">{work.title}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-bold truncate">{work.title}</p>
+            {hasAllowedCase && (
+              <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 font-medium">
+                許容登録済
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
             <span>{CONTENT_TYPE_LABELS[work.contentType]}</span>
             {work.projectName && <span className="text-violet-400/70">📁 {work.projectName}</span>}
@@ -337,7 +351,14 @@ function WorkRow({
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <p className="font-bold truncate">{work.title}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-bold truncate">{work.title}</p>
+              {hasAllowedCase && (
+                <span className="flex-shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 border border-green-500/30 font-medium">
+                  許容登録済
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
               <span>{CONTENT_TYPE_LABELS[work.contentType]}</span>
               {work.projectName && (

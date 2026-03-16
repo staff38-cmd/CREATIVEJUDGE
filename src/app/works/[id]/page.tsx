@@ -307,6 +307,7 @@ function IssueCard({
         description: okReason.trim(),
         quote: issue.quote,
         addedAt: new Date().toISOString(),
+        workId: id,
       };
       const updatedAllowedCases = [...(project.allowedCases ?? []), newCase];
       const patchRes = await fetch(`/api/projects/${projectId}`, {
