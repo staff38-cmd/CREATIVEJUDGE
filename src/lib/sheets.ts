@@ -60,11 +60,16 @@ export async function fetchNgRowsFromSheet(sheetUrl: string): Promise<SheetNgRow
     if (!contentType) continue;
 
     // ヘッダーは3行目 → A3:Z で取得
-    const range = `${sheetName}!A3:Z`;
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range,
-    });
+    const safeSheetName = `'${sheetName.replace(/'/g, "''")}'`;
+    let response;
+    try {
+      response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${safeSheetName}!A3:Z`,
+      });
+    } catch {
+      continue;
+    }
     const rows = (response.data.values ?? []) as string[][];
     if (rows.length < 2) continue; // ヘッダー行のみ or 空
 
@@ -124,10 +129,18 @@ export async function fetchNgRowsFree(sheetUrl: string): Promise<NgCase[]> {
   const results: NgCase[] = [];
 
   for (const sheetName of sheetNames) {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${sheetName}!A1:Z`,
-    });
+    // シート名に特殊文字・スペースが含まれる場合はシングルクォートで囲む
+    const safeSheetName = `'${sheetName.replace(/'/g, "''")}'`;
+    let response;
+    try {
+      response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${safeSheetName}!A1:Z`,
+      });
+    } catch {
+      // 読み取れないシート（画像のみ・特殊形式など）はスキップ
+      continue;
+    }
     const rows = (response.data.values ?? []) as string[][];
 
     for (const row of rows) {
