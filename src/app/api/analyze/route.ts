@@ -232,7 +232,11 @@ export async function POST(req: NextRequest) {
 
   // テキストコンテンツがある場合、過去NG事例のquoteと直接照合して確実に検出
   if (work.textContent && project?.ngCases && project.ngCases.length > 0) {
-    const directMatches = detectNgMatches(work.textContent, project.ngCases);
+    // NG事例を新しい順にソート（直近の基準を優先）
+    const sortedNgCases = [...project.ngCases].sort((a, b) =>
+      (b.addedAt ?? "").localeCompare(a.addedAt ?? "")
+    );
+    const directMatches = detectNgMatches(work.textContent, sortedNgCases, project.allowedCases ?? []);
     if (directMatches.length > 0) {
       // AIが既に同じquoteを検出していない場合のみ追加
       const existingQuotes = new Set(
@@ -295,14 +299,26 @@ function filterNgCasesForPrompt(textContent: string | undefined, ngCases: NgCase
   return withOverlap.map(s => s.c);
 }
 
-function detectNgMatches(textContent: string, ngCases: NgCase[]): ComplianceIssue[] {
+function detectNgMatches(
+  textContent: string,
+  ngCases: NgCase[],
+  allowedCases: import("@/lib/types").AllowedCase[] = []
+): ComplianceIssue[] {
   const issues: ComplianceIssue[] = [];
   const seen = new Set<string>();
+
+  // 許容表現のquoteとtitleをセットに（バッティング除外用）
+  const allowedQuotes = new Set(
+    allowedCases.flatMap(a => [a.quote?.trim(), a.title?.trim()].filter(Boolean) as string[])
+  );
 
   for (const ngCase of ngCases) {
     const quote = ngCase.quote?.trim();
     if (!quote || quote.length < 2) continue;
     if (seen.has(quote)) continue;
+
+    // 許容ルールに登録済みの表現はスキップ
+    if (allowedQuotes.has(quote)) continue;
 
     if (textContent.includes(quote)) {
       seen.add(quote);
@@ -384,7 +400,7 @@ function buildPrompt(opts: BuildPromptOptions): string {
         return parts.join("\n");
       })
       .join("\n\n");
-    ngCasesNote = `\n\n【この案件の過去NG事例（同様の問題を検出してください）】\n${casesList}`;
+    ngCasesNote = `\n\n【この案件の過去NG事例（同様の問題を検出してください）】\n※ただし、後述の「許容表現」に登録済みの表現はNGと判定しないでください。許容表現が最優先です。\n${casesList}`;
   }
 
   let allowedCasesNote = "";
