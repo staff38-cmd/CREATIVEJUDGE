@@ -316,8 +316,8 @@ function IssueCard({
       if (!patchRes.ok) { setOkError("保存に失敗しました"); return; }
       setOkDone(true);
       setMarkingOk(false);
-    } catch {
-      setOkError("ネットワークエラーが発生しました");
+    } catch (err) {
+      setOkError("エラー: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       setOkSaving(false);
     }
