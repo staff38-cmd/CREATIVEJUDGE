@@ -26,6 +26,7 @@ jobs:
         run: npm run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Setup SSH
         run: |
