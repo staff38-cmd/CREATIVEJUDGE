@@ -1,4 +1,3 @@
-import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
 
@@ -7,8 +6,9 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
+  const dbUrl = process.env.DATABASE_URL;
+  console.log("[DB] DATABASE_URL:", dbUrl ? `SET (${dbUrl.slice(0, 30)}...)` : "UNDEFINED");
+  const adapter = new PrismaPg({ connectionString: dbUrl });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
