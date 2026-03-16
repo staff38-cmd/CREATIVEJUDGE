@@ -6,9 +6,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const dbUrl = process.env.DATABASE_URL;
-  console.log("[DB] DATABASE_URL:", dbUrl ? `SET (${dbUrl.slice(0, 30)}...)` : "UNDEFINED");
-  const adapter = new PrismaPg({ connectionString: dbUrl });
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
