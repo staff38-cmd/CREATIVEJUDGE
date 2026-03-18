@@ -83,6 +83,13 @@ const CATEGORY_ORDER: RegulationCategory[] = [
   "カスタム",
 ];
 
+interface AnnotationRow {
+  rowNum: number;
+  adText: string;
+  matchedField: string;
+  content: string;
+}
+
 export default function RegulationsPortalPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +101,9 @@ export default function RegulationsPortalPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncMessages, setSyncMessages] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [annotations, setAnnotations] = useState<AnnotationRow[]>([]);
+  const [annotationLoading, setAnnotationLoading] = useState(false);
+  const [annotationError, setAnnotationError] = useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -160,6 +170,25 @@ export default function RegulationsPortalPage() {
       }));
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  const loadAnnotations = async (projectId: string) => {
+    setAnnotationLoading(true);
+    setAnnotationError("");
+    setAnnotations([]);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sheet-annotations`);
+      const data = await res.json();
+      if (!res.ok) {
+        setAnnotationError(data.error ?? "取得エラー");
+      } else {
+        setAnnotations(data.annotations ?? []);
+      }
+    } catch (e) {
+      setAnnotationError(`通信エラー: ${String(e)}`);
+    } finally {
+      setAnnotationLoading(false);
     }
   };
 
@@ -392,6 +421,74 @@ export default function RegulationsPortalPage() {
             })}
           </div>
         </div>
+
+        {/* 注釈・表記ルール: シート生指摘パネル */}
+        {filterCategory === "注釈・表記ルール" && (
+          <div className="rounded-xl border border-teal-500/30 bg-teal-500/5 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold text-teal-300">
+                ✏️ シートの注釈指摘（生データ）
+              </h2>
+              <div className="flex gap-2 items-center">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) loadAnnotations(e.target.value);
+                  }}
+                  className="bg-gray-900 text-white border border-teal-500/30 rounded-lg px-3 py-1.5 text-xs focus:outline-none"
+                  style={{ colorScheme: "dark" }}
+                  defaultValue=""
+                >
+                  <option value="">案件を選んで読み込む</option>
+                  {projects.filter((p) => p.sheetUrl).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.clientName ? `${p.clientName} / ` : ""}{p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {annotationLoading && (
+              <div className="text-sm text-gray-400 text-center py-4">読み込み中...</div>
+            )}
+            {annotationError && (
+              <div className="text-sm text-red-400 py-2">❌ {annotationError}</div>
+            )}
+            {!annotationLoading && annotations.length === 0 && !annotationError && (
+              <div className="text-xs text-gray-500">
+                案件を選択するとシートから注釈関連の備考を一覧表示します（AIなし・キーワード検索）
+              </div>
+            )}
+            {annotations.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs text-gray-500 mb-2">{annotations.length} 件ヒット</div>
+                {annotations.map((row) => (
+                  <div
+                    key={row.rowNum}
+                    className="bg-black/20 rounded-lg p-3 border border-teal-500/10"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="text-xs text-teal-400 font-mono flex-shrink-0 mt-0.5">
+                        {row.rowNum}行
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-gray-400 mb-0.5">
+                          [{row.matchedField}]
+                          {row.adText && (
+                            <span className="ml-2 text-gray-600">
+                              コピー: {row.adText.slice(0, 40)}{row.adText.length > 40 ? "…" : ""}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-white">{row.content}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* NG表現一覧 */}
         {loading ? (
