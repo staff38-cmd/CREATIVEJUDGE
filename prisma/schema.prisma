@@ -63,8 +63,19 @@ model Project {
 
   client                        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
   works                         Work[]
+  crSheetSync                   CrSheetSync?
 
   @@index([clientId])
+}
+
+// CR提出シートの増分同期状態管理
+model CrSheetSync {
+  id          String  @id @default(uuid())
+  projectId   String  @unique
+  lastSyncRow Int     @default(0)
+  lastSyncAt  String?
+
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
 
 model ChecklistSession {

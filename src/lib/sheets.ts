@@ -167,6 +167,131 @@ export async function fetchNgRowsFree(sheetUrl: string): Promise<NgCase[]> {
   return results;
 }
 
+// ===== CR提出シート（備考欄）から増分読取 =====
+
+// CR提出シートの列インデックス（固定フォーマット）
+const CR_COL = {
+  AD_TEXT: 2,    // C: 広告コピー本文
+  CL1_RESULT: 7, // H: 1次CL ○×
+  CL1_NOTE: 8,   // I: 1次CL 備考
+  CL2_RESULT: 10,// K: 2次CL ○×
+  CL2_NOTE: 11,  // L: 2次CL 備考
+  MEMO: 12,      // M: 備考
+  NG_REASON: 14, // O: 最終可否備考（NG理由）
+  AALL_NOTE: 15, // P: アール備考
+};
+
+export interface CrFeedbackRow {
+  rowNum: number;
+  adText: string;
+  cl1Result: string;
+  cl1Note: string;
+  cl2Result: string;
+  cl2Note: string;
+  memo: string;
+  ngReason: string;
+  aallNote: string;
+}
+
+/**
+ * CR提出シートから指定行以降のフィードバック行を取得する
+ * @param sheetUrl - スプレッドシートURL（gidパラメータ対応）
+ * @param fromRow - 読み取り開始行（1-indexed、デフォルト=2でヘッダースキップ）
+ */
+export async function fetchCrSheetFeedback(
+  sheetUrl: string,
+  fromRow = 2
+): Promise<CrFeedbackRow[]> {
+  const auth = getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  const spreadsheetId = extractSheetId(sheetUrl);
+
+  // gid（シートタブ）を URL から抽出
+  const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
+  const gid = gidMatch ? gidMatch[1] : null;
+
+  // gidが指定されている場合はシート名を取得
+  let sheetName = "";
+  if (gid) {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    const found = (meta.data.sheets ?? []).find(
+      (s) => String(s.properties?.sheetId) === gid
+    );
+    if (found?.properties?.title) {
+      sheetName = found.properties.title;
+    }
+  }
+
+  const rangePrefix = sheetName ? `'${sheetName.replace(/'/g, "''")}'!` : "";
+  const range = `${rangePrefix}A${fromRow}:P`;
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range,
+    valueRenderOption: "FORMATTED_VALUE",
+  });
+
+  const rawRows = (res.data.values ?? []) as string[][];
+
+  return rawRows
+    .map((row, idx) => {
+      const cl1Result = (row[CR_COL.CL1_RESULT] ?? "").trim();
+      const cl1Note = (row[CR_COL.CL1_NOTE] ?? "").trim();
+      const cl2Result = (row[CR_COL.CL2_RESULT] ?? "").trim();
+      const cl2Note = (row[CR_COL.CL2_NOTE] ?? "").trim();
+      const memo = (row[CR_COL.MEMO] ?? "").trim();
+      const ngReason = (row[CR_COL.NG_REASON] ?? "").trim();
+      const aallNote = (row[CR_COL.AALL_NOTE] ?? "").trim();
+
+      // NGフィードバックがある行のみ返す
+      const hasNg = cl1Result === "×" || cl2Result === "×";
+      const hasNote = [cl1Note, cl2Note, memo, ngReason, aallNote].join("").length > 3;
+      if (!hasNg && !hasNote) return null;
+
+      return {
+        rowNum: fromRow + idx,
+        adText: (row[CR_COL.AD_TEXT] ?? "").trim(),
+        cl1Result,
+        cl1Note,
+        cl2Result,
+        cl2Note,
+        memo,
+        ngReason,
+        aallNote,
+      };
+    })
+    .filter((r): r is CrFeedbackRow => r !== null);
+}
+
+/** CR提出シートの総行数（最終行番号）を取得 */
+export async function getCrSheetLastRow(sheetUrl: string): Promise<number> {
+  const auth = getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = extractSheetId(sheetUrl);
+
+  const gidMatch = sheetUrl.match(/[#&?]gid=(\d+)/);
+  const gid = gidMatch ? gidMatch[1] : null;
+
+  let sheetName = "";
+  if (gid) {
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    const found = (meta.data.sheets ?? []).find(
+      (s) => String(s.properties?.sheetId) === gid
+    );
+    if (found?.properties?.title) sheetName = found.properties.title;
+  }
+
+  const rangePrefix = sheetName ? `'${sheetName.replace(/'/g, "''")}'!` : "";
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${rangePrefix}A:A`,
+    valueRenderOption: "FORMATTED_VALUE",
+  });
+
+  return (res.data.values ?? []).length;
+}
+
 export function convertToNgCases(rows: SheetNgRow[]): NgCase[] {
   return rows.map((row) => {
     const contentTypeLabel =
