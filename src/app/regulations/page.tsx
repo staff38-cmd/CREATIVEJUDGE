@@ -18,52 +18,71 @@ interface ProjectSummary {
 
 const CATEGORY_CONFIG: Record<
   RegulationCategory,
-  { icon: string; bg: string; text: string; border: string }
+  { icon: string; label: string; bg: string; text: string; border: string }
 > = {
   過去NG事例: {
     icon: "🔴",
+    label: "過去NG事例",
     bg: "bg-red-500/10",
     text: "text-red-300",
     border: "border-red-500/20",
   },
   企業レギュレーション: {
     icon: "🏢",
+    label: "企業レギュレーション",
     bg: "bg-blue-500/10",
     text: "text-blue-300",
     border: "border-blue-500/20",
   },
   薬機法: {
     icon: "⚖️",
+    label: "薬機法",
     bg: "bg-orange-500/10",
     text: "text-orange-300",
     border: "border-orange-500/20",
   },
   景品表示法: {
     icon: "📋",
+    label: "景品表示法",
     bg: "bg-yellow-500/10",
     text: "text-yellow-300",
     border: "border-yellow-500/20",
   },
   媒体ガイドライン: {
     icon: "📺",
+    label: "媒体ガイドライン",
     bg: "bg-purple-500/10",
     text: "text-purple-300",
     border: "border-purple-500/20",
   },
   カスタム: {
-    icon: "🔖",
+    icon: "📝",
+    label: "手動登録",
     bg: "bg-gray-500/10",
     text: "text-gray-300",
     border: "border-gray-500/20",
   },
 };
 
+type SortKey = "category" | "addedAt" | "title";
+
+const CATEGORY_ORDER: RegulationCategory[] = [
+  "過去NG事例",
+  "企業レギュレーション",
+  "薬機法",
+  "景品表示法",
+  "媒体ガイドライン",
+  "カスタム",
+];
+
 export default function RegulationsPortalPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<RegulationCategory | "">("");
-  const [filterClient, setFilterClient] = useState("");
+  const [filterProject, setFilterProject] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("category");
+  const [sortAsc, setSortAsc] = useState(true);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncMessages, setSyncMessages] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -74,7 +93,6 @@ export default function RegulationsPortalPage() {
       const data = await res.json();
       const projectList: ProjectSummary[] = data.projects ?? data ?? [];
 
-      // 各プロジェクトの同期状態を取得
       const withSync = await Promise.all(
         projectList.map(async (p) => {
           if (!p.sheetUrl) return p;
@@ -85,7 +103,7 @@ export default function RegulationsPortalPage() {
               return { ...p, crSheetSync: syncData };
             }
           } catch {
-            // sync state取得失敗は無視
+            // ignore
           }
           return p;
         })
@@ -137,15 +155,29 @@ export default function RegulationsPortalPage() {
     }
   };
 
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortAsc((v) => !v);
+    } else {
+      setSortKey(key);
+      setSortAsc(true);
+    }
+  };
+
   // 全プロジェクトのngCasesを横断して集計
   const allCases = projects.flatMap((p) =>
-    (p.ngCases ?? []).map((c) => ({ ...c, projectName: p.name, clientName: p.clientName, projectId: p.id }))
+    (p.ngCases ?? []).map((c) => ({
+      ...c,
+      projectName: p.name,
+      clientName: p.clientName,
+      projectId: p.id,
+    }))
   );
 
   // フィルタ
   const filtered = allCases.filter((c) => {
     if (filterCategory && c.category !== filterCategory) return false;
-    if (filterClient && c.clientName !== filterClient) return false;
+    if (filterProject && c.projectId !== filterProject) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       if (
@@ -158,9 +190,26 @@ export default function RegulationsPortalPage() {
     return true;
   });
 
-  const clients = [...new Set(projects.map((p) => p.clientName).filter(Boolean) as string[])];
-  const totalNg = allCases.filter((c) => c.category === "過去NG事例" || c.category === "企業レギュレーション").length;
+  // ソート
+  const sorted = [...filtered].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === "category") {
+      cmp =
+        CATEGORY_ORDER.indexOf(a.category ?? "カスタム") -
+        CATEGORY_ORDER.indexOf(b.category ?? "カスタム");
+      if (cmp === 0) cmp = a.title.localeCompare(b.title, "ja");
+    } else if (sortKey === "addedAt") {
+      cmp = new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime();
+    } else if (sortKey === "title") {
+      cmp = a.title.localeCompare(b.title, "ja");
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+
   const projectsWithSheet = projects.filter((p) => p.sheetUrl);
+  const totalNg = allCases.filter(
+    (c) => c.category === "過去NG事例" || c.category === "企業レギュレーション"
+  ).length;
 
   const formatDate = (iso: string | null) =>
     iso
@@ -171,6 +220,19 @@ export default function RegulationsPortalPage() {
           minute: "2-digit",
         })
       : "未同期";
+
+  const SortButton = ({ label, k }: { label: string; k: SortKey }) => (
+    <button
+      onClick={() => toggleSort(k)}
+      className={`text-xs px-2 py-1 rounded transition-colors ${
+        sortKey === k
+          ? "bg-violet-600 text-white"
+          : "border border-white/20 text-gray-400 hover:bg-white/10"
+      }`}
+    >
+      {label} {sortKey === k ? (sortAsc ? "↑" : "↓") : ""}
+    </button>
+  );
 
   return (
     <div className="min-h-screen">
@@ -263,8 +325,8 @@ export default function RegulationsPortalPage() {
           </div>
         )}
 
-        {/* フィルタ・検索 */}
-        <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+        {/* フィルタ・検索・ソート */}
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
           <div className="flex flex-wrap gap-3">
             <input
               type="text"
@@ -273,18 +335,20 @@ export default function RegulationsPortalPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 min-w-48 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50 placeholder-gray-500"
             />
+            {/* 案件フィルター */}
             <select
-              value={filterClient}
-              onChange={(e) => setFilterClient(e.target.value)}
+              value={filterProject}
+              onChange={(e) => setFilterProject(e.target.value)}
               className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none"
             >
-              <option value="">全クライアント</option>
-              {clients.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              <option value="">全案件</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.clientName ? `${p.clientName} / ` : ""}{p.name}
                 </option>
               ))}
             </select>
+            {/* カテゴリフィルター */}
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value as RegulationCategory | "")}
@@ -293,17 +357,24 @@ export default function RegulationsPortalPage() {
               <option value="">全カテゴリ</option>
               {Object.entries(CATEGORY_CONFIG).map(([cat, cfg]) => (
                 <option key={cat} value={cat}>
-                  {cfg.icon} {cat}
+                  {cfg.icon} {cfg.label}
                 </option>
               ))}
             </select>
+          </div>
+          {/* ソート */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500">並び替え:</span>
+            <SortButton label="カテゴリ" k="category" />
+            <SortButton label="登録日" k="addedAt" />
+            <SortButton label="タイトル" k="title" />
           </div>
         </div>
 
         {/* NG表現一覧 */}
         {loading ? (
           <div className="text-center py-16 text-gray-500">読み込み中...</div>
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
             <div className="text-5xl mb-4">📋</div>
             <p className="text-lg mb-2">レギュレーションがまだ登録されていません</p>
@@ -319,9 +390,10 @@ export default function RegulationsPortalPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="text-xs text-gray-500 px-1">{filtered.length} 件表示</div>
-            {filtered.map((entry) => {
-              const config = CATEGORY_CONFIG[entry.category ?? "カスタム"] ?? CATEGORY_CONFIG["カスタム"];
+            <div className="text-xs text-gray-500 px-1">{sorted.length} 件表示</div>
+            {sorted.map((entry) => {
+              const config =
+                CATEGORY_CONFIG[entry.category ?? "カスタム"] ?? CATEGORY_CONFIG["カスタム"];
               const isExpanded = expandedId === entry.id;
               return (
                 <div
@@ -338,7 +410,7 @@ export default function RegulationsPortalPage() {
                         <span
                           className={`text-xs font-bold px-2 py-0.5 rounded-full border ${config.bg} ${config.text} ${config.border}`}
                         >
-                          {entry.category ?? "カスタム"}
+                          {config.label}
                         </span>
                         <span className="text-xs text-gray-500">
                           {entry.clientName && `${entry.clientName} / `}
