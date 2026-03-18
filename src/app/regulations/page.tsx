@@ -55,6 +55,13 @@ const CATEGORY_CONFIG: Record<
     text: "text-purple-300",
     border: "border-purple-500/20",
   },
+  "注釈・表記ルール": {
+    icon: "🖊️",
+    label: "注釈・表記ルール",
+    bg: "bg-teal-500/10",
+    text: "text-teal-300",
+    border: "border-teal-500/20",
+  },
   カスタム: {
     icon: "📝",
     label: "手動登録",
@@ -71,6 +78,7 @@ const CATEGORY_ORDER: RegulationCategory[] = [
   "企業レギュレーション",
   "薬機法",
   "景品表示法",
+  "注釈・表記ルール",
   "媒体ガイドライン",
   "カスタム",
 ];

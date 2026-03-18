@@ -78,6 +78,7 @@ export type RegulationCategory =
   | "過去NG事例"
   | "薬機法"
   | "景品表示法"
+  | "注釈・表記ルール"
   | "カスタム";
 
 export interface ComplianceIssue {
