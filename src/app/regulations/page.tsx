@@ -56,7 +56,7 @@ const CATEGORY_CONFIG: Record<
     border: "border-purple-500/20",
   },
   "注釈・表記ルール": {
-    icon: "🖊️",
+    icon: "✏️",
     label: "注釈・表記ルール",
     bg: "bg-teal-500/10",
     text: "text-teal-300",
@@ -129,7 +129,7 @@ export default function RegulationsPortalPage() {
     loadData();
   }, [loadData]);
 
-  const handleSync = async (project: ProjectSummary, dryRun: boolean) => {
+  const handleSync = async (project: ProjectSummary, dryRun: boolean, resetSync = false) => {
     setSyncingId(project.id);
     setSyncMessages((prev) => ({ ...prev, [project.id]: "" }));
 
@@ -137,7 +137,7 @@ export default function RegulationsPortalPage() {
       const res = await fetch(`/api/projects/${project.id}/cr-sheet-sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun }),
+        body: JSON.stringify({ dryRun, resetSync }),
       });
       const data = await res.json();
 
@@ -306,6 +306,18 @@ export default function RegulationsPortalPage() {
                         className="text-xs px-3 py-1.5 rounded bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-40 transition-colors"
                       >
                         {syncingId === p.id ? "同期中..." : "今すぐ同期"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm("全件再分類します。既存のNG表現はすべて上書きされます。よろしいですか？")) {
+                            handleSync(p, false, true);
+                          }
+                        }}
+                        disabled={syncingId !== null}
+                        title="最初から全件再取得・再分類（注釈カテゴリ等の再分類に使用）"
+                        className="text-xs px-3 py-1.5 rounded border border-orange-500/40 text-orange-300 hover:bg-orange-500/10 disabled:opacity-40 transition-colors"
+                      >
+                        全件再同期
                       </button>
                     </div>
                   </div>
