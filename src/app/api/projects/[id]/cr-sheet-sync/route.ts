@@ -43,6 +43,7 @@ export async function POST(
   const body = await req.json().catch(() => ({}));
   const dryRun: boolean = body.dryRun ?? false;
   const resetSync: boolean = body.resetSync ?? false; // true=最初から全件再取得
+  const maxRows: number = body.maxRows ?? 500; // 1回に処理する最大行数（デフォルト500）
 
   const sheetUrl = body.sheetUrl || project.sheetUrl;
   if (!sheetUrl) {
@@ -56,18 +57,22 @@ export async function POST(
   const syncState = await prisma.crSheetSync.findUnique({
     where: { projectId: id },
   });
-  const fromRow = resetSync ? 2 : (syncState?.lastSyncRow ?? 0) + 1;
-  if (fromRow < 2) {
-    // まだ一度も同期していない → 2行目（ヘッダー行スキップ）から開始
-  }
+  const fromRow = resetSync ? 2 : Math.max((syncState?.lastSyncRow ?? 0) + 1, 2);
 
-  // シートから取得
+  // シートから取得（maxRows件に制限）
   let feedbackRows: CrFeedbackRow[];
   let lastRow: number;
 
   try {
-    feedbackRows = await fetchCrSheetFeedback(sheetUrl, Math.max(fromRow, 2));
-    lastRow = await getCrSheetLastRow(sheetUrl);
+    const allFeedbackRows = await fetchCrSheetFeedback(sheetUrl, fromRow);
+    feedbackRows = allFeedbackRows.slice(0, maxRows);
+    // 処理した最後の行番号を計算
+    const processedUntilRow = feedbackRows.length > 0
+      ? feedbackRows[feedbackRows.length - 1].rowNum
+      : fromRow - 1;
+    lastRow = allFeedbackRows.length > maxRows
+      ? processedUntilRow  // まだ続きがある場合は処理済み最終行
+      : await getCrSheetLastRow(sheetUrl); // 全件処理済みなら実際の最終行
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[cr-sheet-sync] Sheets取得エラー:", err);
@@ -124,11 +129,19 @@ export async function POST(
     await upsertSyncState(id, lastRow);
   }
 
+  // 処理件数の情報
+  const processedUntil = feedbackRows.length > 0 ? feedbackRows[feedbackRows.length - 1].rowNum : fromRow - 1;
+  const hasMore = body.maxRows !== undefined && feedbackRows.length >= maxRows;
+
   return NextResponse.json({
-    message: dryRun ? "DRY RUN完了（保存なし）" : `${extractedCases.length} 件のNG表現を抽出・登録しました`,
-    newRows: lastRow - Math.max(fromRow, 2) + 1,
+    message: dryRun
+      ? `DRY RUN完了（保存なし）${hasMore ? ` ※まだ続きがあります（${processedUntil}行目まで処理）` : ""}`
+      : `${extractedCases.length} 件のNG表現を抽出・登録しました${hasMore ? ` ※続きあり（${processedUntil}行目まで処理）` : ""}`,
+    newRows: feedbackRows.length,
     feedbackRows: feedbackRows.length,
     extracted: extractedCases.length,
+    processedUntilRow: processedUntil,
+    hasMore,
     cases: dryRun ? extractedCases : undefined, // DRY RUN時のみ内容を返す
   });
 }
