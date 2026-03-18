@@ -221,19 +221,6 @@ export default function RegulationsPortalPage() {
         })
       : "未同期";
 
-  const SortButton = ({ label, k }: { label: string; k: SortKey }) => (
-    <button
-      onClick={() => toggleSort(k)}
-      className={`text-xs px-2 py-1 rounded transition-colors ${
-        sortKey === k
-          ? "bg-violet-600 text-white"
-          : "border border-white/20 text-gray-400 hover:bg-white/10"
-      }`}
-    >
-      {label} {sortKey === k ? (sortAsc ? "↑" : "↓") : ""}
-    </button>
-  );
-
   return (
     <div className="min-h-screen">
       {/* ヘッダー */}
@@ -365,9 +352,22 @@ export default function RegulationsPortalPage() {
           {/* ソート */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500">並び替え:</span>
-            <SortButton label="カテゴリ" k="category" />
-            <SortButton label="登録日" k="addedAt" />
-            <SortButton label="タイトル" k="title" />
+            {(["category", "addedAt", "title"] as SortKey[]).map((k) => {
+              const labels: Record<SortKey, string> = { category: "カテゴリ", addedAt: "登録日", title: "タイトル" };
+              return (
+                <button
+                  key={k}
+                  onClick={() => toggleSort(k)}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                    sortKey === k
+                      ? "bg-violet-600 text-white"
+                      : "border border-white/20 text-gray-400 hover:bg-white/10"
+                  }`}
+                >
+                  {labels[k]} {sortKey === k ? (sortAsc ? "↑" : "↓") : ""}
+                </button>
+              );
+            })}
           </div>
         </div>
 
