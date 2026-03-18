@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { v4 as uuidv4 } from "uuid";
 import { getProject, saveProject } from "@/lib/storage";
 import { fetchCrSheetFeedback, getCrSheetLastRow, CrFeedbackRow } from "@/lib/sheets";
@@ -134,14 +133,16 @@ export async function POST(
   });
 }
 
-// ===== Claude AI でフィードバックを分類 =====
+// ===== Gemini AI でフィードバックを分類 =====
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? "";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 async function classifyFeedbackWithClaude(
   rows: CrFeedbackRow[],
   projectName: string,
   clientName: string
 ): Promise<NgCase[]> {
-  const client = new Anthropic();
   const BATCH_SIZE = 20;
   const allCases: NgCase[] = [];
   const now = new Date().toISOString();
@@ -183,13 +184,21 @@ ${rowsText}
 
 rulesが空なら {"rules":[]} を返してください。`;
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2000,
-      messages: [{ role: "user", content: prompt }],
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     });
 
-    const text = (response.content[0] as { text: string }).text.trim();
+    if (!res.ok) {
+      console.error("[cr-sheet-sync] Gemini API error:", res.status);
+      continue;
+    }
+
+    const json = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    const rawText = (json.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+    const text = rawText.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+
     let parsed: { rules: Array<{ title: string; description: string; category: string; quote?: string; sourceRow?: number }> };
 
     try {

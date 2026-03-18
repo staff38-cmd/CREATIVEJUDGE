@@ -12,8 +12,8 @@
  *   node scripts/sync-regulations.mjs --sheet-id=SHEET_ID --from-row=2
  *   node scripts/sync-regulations.mjs --dry-run   # ファイル出力もしない
  *
- * 環境変数（プロジェクトルートの .env から自動読み込み）:
- *   ANTHROPIC_API_KEY          - Anthropic APIキー（必須）
+ * 環境変数（プロジェクトルートの .env.local から自動読み込み）:
+ *   GEMINI_API_KEY             - Gemini APIキー（必須）
  *   GOOGLE_CREDENTIALS_PATH    - google-credentials.json のパス（既存と同じ）
  */
 
@@ -24,10 +24,11 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 
-// .env 読み込み
+// .env / .env.local 読み込み
 function loadDotenv() {
-  const envPath = path.join(ROOT, ".env");
-  if (!fs.existsSync(envPath)) return;
+  for (const name of [".env", ".env.local"]) {
+  const envPath = path.join(ROOT, name);
+  if (!fs.existsSync(envPath)) continue;
   for (const line of fs.readFileSync(envPath, "utf-8").split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
@@ -36,6 +37,7 @@ function loadDotenv() {
     const key = trimmed.slice(0, eqIdx).trim();
     const val = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
     if (!process.env[key]) process.env[key] = val;
+  }
   }
 }
 loadDotenv();
@@ -78,8 +80,8 @@ async function main() {
   if (DRY_RUN) console.log("【DRY RUN: ファイル出力なし】");
   console.log("");
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error("❌ ANTHROPIC_API_KEY が未設定");
+  if (!process.env.GEMINI_API_KEY) {
+    console.error("❌ GEMINI_API_KEY が未設定（.env.local を確認してください）");
     process.exit(1);
   }
 
@@ -148,10 +150,9 @@ async function main() {
     return;
   }
 
-  // 3. Claude AIで分類
-  console.log("\n🤖 Claude AIで分類中...");
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  // 3. Gemini AIで分類
+  console.log("\n🤖 Gemini AIで分類中...");
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
   const BATCH_SIZE = 20;
   const results = [];
@@ -173,31 +174,39 @@ async function main() {
       return parts.join("\n");
     }).join("\n\n---\n\n");
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2000,
-      messages: [{
-        role: "user",
-        content: `CR提出シートのフィードバックから、今後のクリエイティブ制作に使えるレギュレーションルールを抽出してください。
+    const prompt = `CR提出シートのフィードバックから、今後のクリエイティブ制作に使えるレギュレーションルールを抽出してください。
 具体的なNG表現がある行のみ抽出し、単なる指示行・誤字は除外してください。
 
 ${rowsText}
 
 JSONのみ出力（\`\`\`不要）:
-{"rules":[{"title":"タイトル","description":"NG理由","category":"過去NG事例"|"企業レギュレーション"|"薬機法"|"景品表示法","quote":"NG表現","sourceRow":行番号}]}`,
-      }],
+{"rules":[{"title":"タイトル","description":"NG理由","category":"過去NG事例"|"企業レギュレーション"|"薬機法"|"景品表示法","quote":"NG表現","sourceRow":行番号}]}`;
+
+    const { default: fetch } = await import("node-fetch");
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     });
 
-    const text = response.content[0].text.trim();
+    if (!res.ok) {
+      console.error(`  ⚠️ Gemini API エラー ${res.status}`);
+      continue;
+    }
+
+    const json = await res.json();
+    const text = (json.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+    const cleanText = text.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+
     try {
-      const parsed = JSON.parse(text);
+      const parsed = JSON.parse(cleanText);
       results.push(...(parsed.rules ?? []));
       for (const r of parsed.rules ?? []) {
         const icon = r.category === "過去NG事例" ? "🔴" : "🟡";
         console.log(`  ${icon} [${r.category}] "${r.quote || r.title}" - ${r.description.slice(0, 50)}...`);
       }
     } catch {
-      console.error("  ⚠️ JSON parse error:", text.slice(0, 200));
+      console.error("  ⚠️ JSON parse error:", cleanText.slice(0, 200));
     }
 
     if (i + BATCH_SIZE < feedbackRows.length) {
