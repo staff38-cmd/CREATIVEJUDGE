@@ -346,7 +346,8 @@ export default function RegulationsPortalPage() {
             <select
               value={filterProject}
               onChange={(e) => setFilterProject(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none"
+              className="bg-gray-900 text-white border border-white/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              style={{ colorScheme: "dark" }}
             >
               <option value="">全案件</option>
               {projects.map((p) => (
@@ -359,7 +360,8 @@ export default function RegulationsPortalPage() {
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value as RegulationCategory | "")}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none"
+              className="bg-gray-900 text-white border border-white/20 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              style={{ colorScheme: "dark" }}
             >
               <option value="">全カテゴリ</option>
               {Object.entries(CATEGORY_CONFIG).map(([cat, cfg]) => (
