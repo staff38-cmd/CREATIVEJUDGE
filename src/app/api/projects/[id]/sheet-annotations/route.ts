@@ -36,6 +36,12 @@ export interface AnnotationRow {
   content: string;
 }
 
+export interface AnnotationGroup {
+  content: string;
+  count: number;
+  examples: { rowNum: number; sheetName: string; adText: string }[];
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -159,11 +165,27 @@ export async function GET(
       }
     }
 
+    // 同じ content でグループ化
+    const groupMap = new Map<string, AnnotationGroup>();
+    for (const r of results) {
+      const key = r.content;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, { content: r.content, count: 0, examples: [] });
+      }
+      const g = groupMap.get(key)!;
+      g.count++;
+      if (g.examples.length < 3) {
+        g.examples.push({ rowNum: r.rowNum, sheetName: r.sheetName, adText: r.adText });
+      }
+    }
+    const grouped = Array.from(groupMap.values()).sort((a, b) => b.count - a.count);
+
     return NextResponse.json({
       total: results.length,
+      unique: grouped.length,
       scanned: totalScanned,
       sheets: allSheets,
-      annotations: results,
+      annotations: grouped,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

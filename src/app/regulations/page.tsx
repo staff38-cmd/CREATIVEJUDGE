@@ -83,12 +83,10 @@ const CATEGORY_ORDER: RegulationCategory[] = [
   "カスタム",
 ];
 
-interface AnnotationRow {
-  rowNum: number;
-  sheetName?: string;
-  adText: string;
-  matchedField: string;
+interface AnnotationGroup {
   content: string;
+  count: number;
+  examples: { rowNum: number; sheetName: string; adText: string }[];
 }
 
 export default function RegulationsPortalPage() {
@@ -102,7 +100,7 @@ export default function RegulationsPortalPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncMessages, setSyncMessages] = useState<Record<string, string>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [annotations, setAnnotations] = useState<AnnotationRow[]>([]);
+  const [annotations, setAnnotations] = useState<AnnotationGroup[]>([]);
   const [annotationLoading, setAnnotationLoading] = useState(false);
   const [annotationError, setAnnotationError] = useState("");
 
@@ -462,26 +460,29 @@ export default function RegulationsPortalPage() {
             )}
             {annotations.length > 0 && (
               <div className="space-y-2">
-                <div className="text-xs text-gray-500 mb-2">{annotations.length} 件ヒット</div>
-                {annotations.map((row) => (
+                <div className="text-xs text-gray-500 mb-2">{annotations.reduce((s, g) => s + g.count, 0)} 件ヒット（{annotations.length} 種類）</div>
+                {annotations.map((group, idx) => (
                   <div
-                    key={row.rowNum}
+                    key={idx}
                     className="bg-black/20 rounded-lg p-3 border border-teal-500/10"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="text-xs text-teal-400 font-mono flex-shrink-0 mt-0.5">
-                        {row.sheetName && <span className="text-gray-500 mr-0.5">{row.sheetName}/</span>}{row.rowNum}行
+                      <span className="text-xs bg-teal-500/20 text-teal-400 font-mono flex-shrink-0 mt-0.5 px-1.5 py-0.5 rounded">
+                        {group.count}回
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs text-gray-400 mb-0.5">
-                          [{row.matchedField}]
-                          {row.adText && (
-                            <span className="ml-2 text-gray-600">
-                              コピー: {row.adText.slice(0, 40)}{row.adText.length > 40 ? "…" : ""}
+                        <div className="text-sm text-white mb-1">{group.content}</div>
+                        <div className="text-xs text-gray-500">
+                          {group.examples.map((ex, i) => (
+                            <span key={i} className="mr-3">
+                              {ex.sheetName && <span className="text-gray-600">{ex.sheetName}/</span>}{ex.rowNum}行
+                              {ex.adText && <span className="text-gray-600 ml-1">「{ex.adText.slice(0, 30)}{ex.adText.length > 30 ? "…" : ""}」</span>}
                             </span>
+                          ))}
+                          {group.count > group.examples.length && (
+                            <span className="text-gray-600">他{group.count - group.examples.length}件</span>
                           )}
                         </div>
-                        <div className="text-sm text-white">{row.content}</div>
                       </div>
                     </div>
                   </div>
