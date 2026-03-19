@@ -49,6 +49,9 @@ export default async function RootLayout({
                   <Link href="/works" className="text-sm text-gray-400 hover:text-white transition-colors">
                     チェック履歴
                   </Link>
+                  <Link href="/regulations" className="text-sm text-gray-400 hover:text-white transition-colors">
+                    レギュレーション
+                  </Link>
                   <Link href="/checklists" className="text-sm text-gray-400 hover:text-white transition-colors">
                     チェックリスト
                   </Link>

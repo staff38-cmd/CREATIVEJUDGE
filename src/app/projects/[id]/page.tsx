@@ -2,27 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { v4 as uuidv4 } from "uuid";
-import { Project, NgCase, AllowedCase, RegulationCategory, Client } from "@/lib/types";
-
-const REGULATION_CATEGORIES: RegulationCategory[] = [
-  "企業レギュレーション",
-  "媒体ガイドライン",
-  "過去NG事例",
-  "薬機法",
-  "景品表示法",
-  "カスタム",
-];
-
-const CATEGORY_COLOR: Record<RegulationCategory, string> = {
-  企業レギュレーション: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  媒体ガイドライン: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  過去NG事例: "bg-red-500/20 text-red-300 border-red-500/30",
-  薬機法: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  景品表示法: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  "注釈・表記ルール": "bg-teal-500/20 text-teal-300 border-teal-500/30",
-  カスタム: "bg-gray-500/20 text-gray-300 border-gray-500/30",
-};
+import { Project, Client } from "@/lib/types";
 
 export default function ProjectSettingsPage({
   params,
@@ -70,22 +50,6 @@ export default function ProjectSettingsPage({
   const [companyUploadResult, setCompanyUploadResult] = useState<{ extractedLength: number; preview: string } | null>(null);
   const [companyFileError, setCompanyFileError] = useState<string | null>(null);
 
-  // NG事例
-  const [ngCases, setNgCases] = useState<NgCase[]>([]);
-  const [showNgForm, setShowNgForm] = useState(false);
-  const [ngTitle, setNgTitle] = useState("");
-  const [ngDescription, setNgDescription] = useState("");
-  const [ngCategory, setNgCategory] = useState<RegulationCategory | "">("");
-  const [ngQuote, setNgQuote] = useState("");
-  const [addingNg, setAddingNg] = useState(false);
-
-  // 許容表現
-  const [allowedCases, setAllowedCases] = useState<AllowedCase[]>([]);
-  const [showAllowedForm, setShowAllowedForm] = useState(false);
-  const [allowedTitle, setAllowedTitle] = useState("");
-  const [allowedDescription, setAllowedDescription] = useState("");
-  const [allowedQuote, setAllowedQuote] = useState("");
-  const [addingAllowed, setAddingAllowed] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -106,8 +70,6 @@ export default function ProjectSettingsPage({
       setProductFileName(data.productDetailsFileName ?? null);
       setCompanyFileName(data.companyRegulationsFileName ?? null);
       setCheckMode(data.checkMode ?? "soft");
-      setNgCases(data.ngCases ?? []);
-      setAllowedCases(data.allowedCases ?? []);
       setLoading(false);
     });
   }, [id]);
@@ -171,9 +133,6 @@ export default function ProjectSettingsPage({
         setSyncError(data.error ?? "同期に失敗しました");
       } else {
         setSyncResult({ imported: data.imported, total: data.total, message: data.message });
-        // NG事例一覧を再取得
-        const proj = await fetch(`/api/projects/${id}`).then((r) => r.json());
-        setNgCases(proj.ngCases ?? []);
         if (ngSheetUrl) setNgSheetUrl(ngSheetUrl);
       }
     } catch {
@@ -310,74 +269,6 @@ export default function ProjectSettingsPage({
     }
   }
 
-  async function addNgCase() {
-    if (!ngTitle.trim() || !ngDescription.trim()) return;
-    setAddingNg(true);
-    const newCase: NgCase = {
-      id: uuidv4(),
-      title: ngTitle.trim(),
-      description: ngDescription.trim(),
-      category: ngCategory || undefined,
-      quote: ngQuote.trim() || undefined,
-      addedAt: new Date().toISOString(),
-    };
-    const updated = [...ngCases, newCase];
-    const res = await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ngCases: updated }),
-    });
-    if (res.ok) {
-      setNgCases(updated);
-      setNgTitle(""); setNgDescription(""); setNgCategory(""); setNgQuote("");
-      setShowNgForm(false);
-    }
-    setAddingNg(false);
-  }
-
-  async function deleteNgCase(caseId: string) {
-    const updated = ngCases.filter((c) => c.id !== caseId);
-    const res = await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ngCases: updated }),
-    });
-    if (res.ok) setNgCases(updated);
-  }
-
-  async function addAllowedCase() {
-    if (!allowedTitle.trim() || !allowedDescription.trim()) return;
-    setAddingAllowed(true);
-    const newCase: AllowedCase = {
-      id: uuidv4(),
-      title: allowedTitle.trim(),
-      description: allowedDescription.trim(),
-      quote: allowedQuote.trim() || undefined,
-      addedAt: new Date().toISOString(),
-    };
-    const updated = [...allowedCases, newCase];
-    const res = await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ allowedCases: updated }),
-    });
-    if (res.ok) {
-      setAllowedCases(updated);
-      setAllowedTitle(""); setAllowedDescription(""); setAllowedQuote("");
-      setShowAllowedForm(false);
-    }
-    setAddingAllowed(false);
-  }
-
-  async function deleteAllowedCase(caseId: string) {
-    const updated = allowedCases.filter((c) => c.id !== caseId);
-    const res = await fetch(`/api/projects/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ allowedCases: updated }),
-    });
-    if (res.ok) setAllowedCases(updated);
-  }
 
   if (loading) return <div className="text-center py-20 text-gray-500">読み込み中...</div>;
   if (notFound) return (
@@ -409,19 +300,17 @@ export default function ProjectSettingsPage({
         </Link>
       </div>
 
-      {/* AIジャッジフロー説明 */}
-      <div className="mb-8 p-4 rounded-xl bg-white/5 border border-white/10">
-        <p className="text-xs text-gray-400 font-medium mb-2">AIジャッジフロー</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">① 薬機法・広告法令</span>
-          <span className="text-gray-600">→</span>
-          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">② 企業レギュレーション</span>
-          <span className="text-gray-600">→</span>
-          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30">NG事例照合</span>
-          <span className="text-gray-600">+</span>
-          <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-green-500/20 text-green-300 border border-green-500/30">許容表現参照</span>
+      {/* レギュレーションポータルへのリンク */}
+      <Link
+        href="/regulations"
+        className="mb-8 flex items-center justify-between p-4 rounded-xl bg-violet-500/10 border border-violet-500/20 hover:bg-violet-500/15 transition-colors group"
+      >
+        <div>
+          <p className="text-sm font-bold text-violet-300">レギュレーションポータル</p>
+          <p className="text-xs text-gray-400 mt-0.5">NG事例・OK事例の一覧・検索・削除はこちらで管理できます</p>
         </div>
-      </div>
+        <span className="text-violet-400 group-hover:translate-x-1 transition-transform text-sm">→</span>
+      </Link>
 
       <div className="space-y-8">
         {/* 基本情報 */}
@@ -643,256 +532,7 @@ export default function ProjectSettingsPage({
           )}
         </section>
 
-        {/* NG事例ナレッジ */}
-        <CollapsibleKnowledge
-          title="過去のNG事例ナレッジ"
-          description="過去に指摘・修正したNG事例を登録。AIチェック時に参照されます。"
-          count={ngCases.length}
-          borderColor="border-red-500/20"
-          bgColor="bg-red-500/5"
-          addButton={
-            !showNgForm ? (
-              <button onClick={() => setShowNgForm(true)}
-                className="mt-4 w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-red-500/40 hover:bg-red-500/5 text-gray-400 hover:text-red-300 transition-all">
-                ＋ NG事例を追加
-              </button>
-            ) : null
-          }
-        >
-          {showNgForm ? (
-            <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/20 space-y-3">
-              <p className="text-sm font-medium text-gray-300">新しいNG事例を追加</p>
-              <input type="text" value={ngTitle} onChange={(e) => setNgTitle(e.target.value)}
-                placeholder="事例タイトル（例：効能効果の断言表現） *"
-                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none text-sm transition-colors" />
-              <textarea value={ngDescription} onChange={(e) => setNgDescription(e.target.value)}
-                placeholder="詳細・なぜNGか *" rows={3}
-                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none text-sm transition-colors resize-none" />
-              <input type="text" value={ngQuote} onChange={(e) => setNgQuote(e.target.value)}
-                placeholder="問題のあった表現（任意）　例：「3日で痩せる」"
-                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none text-sm font-mono transition-colors" />
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">関連する規制カテゴリ（任意）</label>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setNgCategory("")}
-                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${ngCategory === "" ? "bg-white/20 text-white border-white/40" : "border-white/10 text-gray-400 hover:border-white/30"}`}>
-                    未分類
-                  </button>
-                  {REGULATION_CATEGORIES.map((cat) => (
-                    <button key={cat} type="button" onClick={() => setNgCategory(cat)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${ngCategory === cat ? CATEGORY_COLOR[cat] : "border-white/10 text-gray-400 hover:border-white/30"}`}>
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button onClick={addNgCase} disabled={!ngTitle.trim() || !ngDescription.trim() || addingNg}
-                  className="px-5 py-2 rounded-lg text-sm font-semibold bg-red-500/80 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                  {addingNg ? "追加中..." : "NG事例を追加"}
-                </button>
-                <button onClick={() => { setShowNgForm(false); setNgTitle(""); setNgDescription(""); setNgCategory(""); setNgQuote(""); }}
-                  className="px-5 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/5 transition-colors">
-                  キャンセル
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowNgForm(true)}
-              className="mt-4 w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-red-500/40 hover:bg-red-500/5 text-gray-400 hover:text-red-300 transition-all">
-              ＋ NG事例を追加
-            </button>
-          )}
-
-          {ngCases.length > 0 && (
-            <div className="mt-4 space-y-3">
-              {ngCases.map((c) => (
-                <NgCaseCard key={c.id} ngCase={c} onDelete={() => deleteNgCase(c.id)} />
-              ))}
-            </div>
-          )}
-          {ngCases.length === 0 && !showNgForm && (
-            <p className="text-center text-sm text-gray-600 py-4">NG事例はまだ登録されていません</p>
-          )}
-        </CollapsibleKnowledge>
-
-        {/* 許容表現ナレッジ */}
-        <CollapsibleKnowledge
-          title="許容表現ナレッジ"
-          description="グレーに見えても承認済みの表現。AIの過剰NG判定を防ぎます。"
-          count={allowedCases.length}
-          borderColor="border-green-500/20"
-          bgColor="bg-green-500/5"
-          addButton={
-            !showAllowedForm ? (
-              <button onClick={() => setShowAllowedForm(true)}
-                className="mt-4 w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-green-500/40 hover:bg-green-500/5 text-gray-400 hover:text-green-300 transition-all">
-                ＋ 許容表現を追加
-              </button>
-            ) : null
-          }
-        >
-          {showAllowedForm ? (
-            <div className="mt-4 p-4 rounded-xl border border-white/10 bg-black/20 space-y-3">
-              <p className="text-sm font-medium text-gray-300">許容表現を追加</p>
-              <input type="text" value={allowedTitle} onChange={(e) => setAllowedTitle(e.target.value)}
-                placeholder="タイトル（例：「うるおい」訴求はOK） *"
-                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none text-sm transition-colors" />
-              <textarea value={allowedDescription} onChange={(e) => setAllowedDescription(e.target.value)}
-                placeholder="なぜOKか・使用条件（例：保湿効果の訴求は化粧品の効能範囲内であり使用可。ただし「治る」等の医薬品的表現は不可） *"
-                rows={3}
-                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none text-sm transition-colors resize-none" />
-              <input type="text" value={allowedQuote} onChange={(e) => setAllowedQuote(e.target.value)}
-                placeholder="具体的な表現（任意）　例：「肌にうるおいを与える」"
-                className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none text-sm font-mono transition-colors" />
-              <div className="flex gap-2 pt-1">
-                <button onClick={addAllowedCase} disabled={!allowedTitle.trim() || !allowedDescription.trim() || addingAllowed}
-                  className="px-5 py-2 rounded-lg text-sm font-semibold bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-                  {addingAllowed ? "追加中..." : "許容表現を追加"}
-                </button>
-                <button onClick={() => { setShowAllowedForm(false); setAllowedTitle(""); setAllowedDescription(""); setAllowedQuote(""); }}
-                  className="px-5 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/5 transition-colors">
-                  キャンセル
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowAllowedForm(true)}
-              className="mt-4 w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-green-500/40 hover:bg-green-500/5 text-gray-400 hover:text-green-300 transition-all">
-              ＋ 許容表現を追加
-            </button>
-          )}
-
-          {allowedCases.length > 0 && (
-            <div className="mt-4 space-y-3">
-              {allowedCases.map((c) => (
-                <AllowedCaseCard key={c.id} allowedCase={c} onDelete={() => deleteAllowedCase(c.id)} />
-              ))}
-            </div>
-          )}
-          {allowedCases.length === 0 && !showAllowedForm && (
-            <p className="text-center text-sm text-gray-600 py-4">許容表現はまだ登録されていません</p>
-          )}
-        </CollapsibleKnowledge>
       </div>
-    </div>
-  );
-}
-
-function CollapsibleKnowledge({
-  title,
-  description,
-  count,
-  borderColor,
-  bgColor,
-  addButton,
-  children,
-}: {
-  title: string;
-  description: string;
-  count: number;
-  borderColor: string;
-  bgColor: string;
-  addButton: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <section className={`rounded-2xl border ${borderColor} ${bgColor}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between p-6 text-left"
-      >
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold">{title}</h2>
-            {count > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-gray-400 font-medium">
-                {count} 件
-              </span>
-            )}
-            <span className="text-xs px-2 py-0.5 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-300">AI参照</span>
-          </div>
-          <p className="text-sm text-gray-400 mt-0.5">{description}</p>
-        </div>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className={`w-5 h-5 text-gray-500 flex-shrink-0 ml-4 transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {open && (
-        <div className="px-6 pb-6">
-          {children}
-          {addButton}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function NgCaseCard({ ngCase, onDelete }: { ngCase: NgCase; onDelete: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="p-4 rounded-xl border border-red-500/20 bg-black/20">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-red-400">🚫</span>
-            <span className="text-sm font-bold">{ngCase.title}</span>
-            {ngCase.category && (
-              <span className={`text-xs px-2 py-0.5 rounded-full border ${CATEGORY_COLOR[ngCase.category]}`}>{ngCase.category}</span>
-            )}
-          </div>
-          {ngCase.quote && (
-            <p className="text-xs font-mono text-orange-300/80 bg-orange-500/10 border border-orange-500/20 rounded px-2 py-1 mt-2 inline-block">
-              &ldquo;{ngCase.quote}&rdquo;
-            </p>
-          )}
-          {expanded && <p className="text-sm text-gray-300 mt-2 leading-relaxed">{ngCase.description}</p>}
-          {!expanded && <p className="text-xs text-gray-500 mt-1 truncate">{ngCase.description}</p>}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => setExpanded(!expanded)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
-            {expanded ? "折りたたむ" : "詳細"}
-          </button>
-          <button onClick={onDelete} className="text-xs text-gray-600 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10">削除</button>
-        </div>
-      </div>
-      <p className="text-xs text-gray-700 mt-2">{new Date(ngCase.addedAt).toLocaleDateString("ja-JP")} 追加</p>
-    </div>
-  );
-}
-
-function AllowedCaseCard({ allowedCase, onDelete }: { allowedCase: AllowedCase; onDelete: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="p-4 rounded-xl border border-green-500/20 bg-black/20">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-green-400">✅</span>
-            <span className="text-sm font-bold">{allowedCase.title}</span>
-          </div>
-          {allowedCase.quote && (
-            <p className="text-xs font-mono text-green-300/80 bg-green-500/10 border border-green-500/20 rounded px-2 py-1 mt-2 inline-block">
-              &ldquo;{allowedCase.quote}&rdquo;
-            </p>
-          )}
-          {expanded && <p className="text-sm text-gray-300 mt-2 leading-relaxed">{allowedCase.description}</p>}
-          {!expanded && <p className="text-xs text-gray-500 mt-1 truncate">{allowedCase.description}</p>}
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => setExpanded(!expanded)} className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
-            {expanded ? "折りたたむ" : "詳細"}
-          </button>
-          <button onClick={onDelete} className="text-xs text-gray-600 hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10">削除</button>
-        </div>
-      </div>
-      <p className="text-xs text-gray-700 mt-2">{new Date(allowedCase.addedAt).toLocaleDateString("ja-JP")} 追加</p>
     </div>
   );
 }
