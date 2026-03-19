@@ -85,6 +85,7 @@ const CATEGORY_ORDER: RegulationCategory[] = [
 
 interface AnnotationRow {
   rowNum: number;
+  sheetName?: string;
   adText: string;
   matchedField: string;
   content: string;
@@ -469,7 +470,7 @@ export default function RegulationsPortalPage() {
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-xs text-teal-400 font-mono flex-shrink-0 mt-0.5">
-                        {row.rowNum}行
+                        {row.sheetName && <span className="text-gray-500 mr-0.5">{row.sheetName}/</span>}{row.rowNum}行
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs text-gray-400 mb-0.5">
