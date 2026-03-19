@@ -47,6 +47,14 @@ export default function WorkDetailPage({ params }: { params: Promise<{ id: strin
   const [error, setError] = useState("");
   const [expandedIssue, setExpandedIssue] = useState<number | null>(null);
 
+  // OK事例登録
+  const [okExampleOpen, setOkExampleOpen] = useState(false);
+  const [okExampleNote, setOkExampleNote] = useState("");
+  const [okExampleSaving, setOkExampleSaving] = useState(false);
+  const [okExampleDone, setOkExampleDone] = useState(false);
+  const [okExampleError, setOkExampleError] = useState("");
+  const [okExampleDescription, setOkExampleDescription] = useState("");
+
   async function fetchWork() {
     const res = await fetch(`/api/works/${id}`);
     if (res.ok) {
@@ -59,6 +67,31 @@ export default function WorkDetailPage({ params }: { params: Promise<{ id: strin
     fetchWork();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function registerOkExample() {
+    if (!work?.projectId) return;
+    setOkExampleSaving(true);
+    setOkExampleError("");
+    try {
+      const res = await fetch(`/api/works/${id}/ok-example`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: work.projectId, userNote: okExampleNote }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOkExampleError(data.error || "登録に失敗しました");
+        return;
+      }
+      setOkExampleDone(true);
+      setOkExampleDescription(data.mediaDescription ?? "");
+      setOkExampleOpen(false);
+    } catch {
+      setOkExampleError("ネットワークエラーが発生しました");
+    } finally {
+      setOkExampleSaving(false);
+    }
+  }
 
   async function runCheck() {
     setChecking(true);
@@ -241,6 +274,75 @@ export default function WorkDetailPage({ params }: { params: Promise<{ id: strin
             >
               {checking ? "チェック中..." : "🔄 再チェック"}
             </button>
+          )}
+
+          {/* OK事例登録 */}
+          {result && work?.projectId && (
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-sm font-bold text-emerald-400">OK事例として登録</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    この素材をAIの事前知識として登録。次回以降、類似クリエイティブのチェックが緩和されます。
+                  </p>
+                </div>
+                {okExampleDone && (
+                  <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 font-bold flex-shrink-0">
+                    ✅ 登録済み
+                  </span>
+                )}
+              </div>
+
+              {okExampleDone ? (
+                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3">
+                  <p className="text-xs text-emerald-300 font-bold mb-1">AIが認識した素材の内容:</p>
+                  <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{okExampleDescription}</p>
+                </div>
+              ) : !okExampleOpen ? (
+                <button
+                  onClick={() => setOkExampleOpen(true)}
+                  className="text-xs px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors font-bold"
+                >
+                  ✅ このクリエイティブをOK事例として登録する
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-gray-400 mb-1 block">
+                      承認理由・備考（任意）
+                    </label>
+                    <textarea
+                      value={okExampleNote}
+                      onChange={(e) => setOkExampleNote(e.target.value)}
+                      placeholder="例: クライアント確認済み・媒体審査通過済み・独自成分名を明記した上でOK"
+                      className="w-full text-xs bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:border-emerald-500/50"
+                      rows={2}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    ※ AIがこの素材の内容を自動解析して登録します（画像・テキストのみ。動画はタイトル情報で登録）
+                  </p>
+                  {okExampleError && (
+                    <p className="text-xs text-red-400">{okExampleError}</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={registerOkExample}
+                      disabled={okExampleSaving}
+                      className="text-xs px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-40 transition-colors font-bold"
+                    >
+                      {okExampleSaving ? "解析・登録中..." : "登録する"}
+                    </button>
+                    <button
+                      onClick={() => { setOkExampleOpen(false); setOkExampleNote(""); setOkExampleError(""); }}
+                      className="text-xs px-3 py-2 rounded-lg text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Issues list */}

@@ -20,6 +20,7 @@ const CATEGORY_COLOR: Record<RegulationCategory, string> = {
   過去NG事例: "bg-red-500/20 text-red-300 border-red-500/30",
   薬機法: "bg-orange-500/20 text-orange-300 border-orange-500/30",
   景品表示法: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  "注釈・表記ルール": "bg-teal-500/20 text-teal-300 border-teal-500/30",
   カスタム: "bg-gray-500/20 text-gray-300 border-gray-500/30",
 };
 

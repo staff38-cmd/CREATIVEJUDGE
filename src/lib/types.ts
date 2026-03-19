@@ -48,11 +48,12 @@ export interface NgCase {
 
 export interface AllowedCase {
   id: string;
-  title: string;       // 許容表現のタイトル
-  description: string; // なぜOKか・どんな条件でOKか
-  quote?: string;      // 具体的な表現
+  title: string;            // 許容表現のタイトル / 承認済み素材のタイトル
+  description: string;      // なぜOKか・どんな条件でOKか
+  quote?: string;           // 具体的な表現（テキストレベルの許容表現）
+  mediaDescription?: string; // 素材の内容説明（OK事例として登録した画像・動画・テキスト全体の説明）
   addedAt: string;
-  workId?: string;     // 登録元のチェック履歴ID
+  workId?: string;          // 登録元のチェック履歴ID
 }
 
 export type RiskLevel = "violation" | "warning" | "caution" | "ok";

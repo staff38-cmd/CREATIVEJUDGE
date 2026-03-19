@@ -403,9 +403,11 @@ function buildPrompt(opts: BuildPromptOptions): string {
     ngCasesNote = `\n\n【この案件の過去NG事例（同様の問題を検出してください）】\n※ただし、後述の「許容表現」に登録済みの表現はNGと判定しないでください。許容表現が最優先です。\n${casesList}`;
   }
 
+  // 許容表現（テキストレベル：quoteがあるもの、またはmediaDescriptionがないもの）
   let allowedCasesNote = "";
-  if (projectAllowedCases && projectAllowedCases.length > 0) {
-    const casesList = projectAllowedCases
+  const allowedExpressions = (projectAllowedCases ?? []).filter(c => !c.mediaDescription);
+  if (allowedExpressions.length > 0) {
+    const casesList = allowedExpressions
       .map((c, i) => {
         const parts = [`${i + 1}. 【${c.title}】`];
         if (c.quote) parts.push(`   表現例: 「${c.quote}」`);
@@ -414,6 +416,21 @@ function buildPrompt(opts: BuildPromptOptions): string {
       })
       .join("\n\n");
     allowedCasesNote = `\n\n【この案件で使用が承認・確認された許容表現（これらはNGと判定しないでください）】\n${casesList}`;
+  }
+
+  // OK事例（承認済みクリエイティブ：mediaDescriptionがあるもの）
+  let okExamplesNote = "";
+  const okExamples = (projectAllowedCases ?? []).filter(c => !!c.mediaDescription);
+  if (okExamples.length > 0) {
+    const list = okExamples
+      .map((c, i) => {
+        const parts = [`${i + 1}. 【承認済み素材: ${c.title}】`];
+        parts.push(`   内容: ${c.mediaDescription}`);
+        if (c.description) parts.push(`   備考: ${c.description}`);
+        return parts.join("\n");
+      })
+      .join("\n\n");
+    okExamplesNote = `\n\n【過去に審査・CLチェックを通過した承認済みクリエイティブ事例（参考）】\n以下のクリエイティブは実際に承認を受けています。これらと同様の表現・演出・トーン・訴求構成を持つ素材は、特別な理由がない限りNGと判定しないでください。\n${list}`;
   }
 
   const textSection = textContent
@@ -448,7 +465,7 @@ ${modeInstruction}
 【チェック対象】
 タイトル: ${title}
 コンテンツ種別: ${contentType}
-${categoryNote}${customNote}${productDetailsNote}${textSection}${extraNote}${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}${mediaNote}
+${categoryNote}${customNote}${productDetailsNote}${textSection}${extraNote}${companyRegsNote}${companyRegsFileNote}${ngCasesNote}${allowedCasesNote}${okExamplesNote}${mediaNote}
 
 【出力形式】
 以下のJSON形式のみ返してください。余分なテキストは不要です。
