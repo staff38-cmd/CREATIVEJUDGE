@@ -191,6 +191,8 @@ export interface CrFeedbackRow {
   memo: string;
   ngReason: string;
   aallNote: string;
+  /** true = 最終的にOK(○)で通った行 */
+  isOk: boolean;
 }
 
 /**
@@ -244,10 +246,13 @@ export async function fetchCrSheetFeedback(
       const ngReason = (row[CR_COL.NG_REASON] ?? "").trim();
       const aallNote = (row[CR_COL.AALL_NOTE] ?? "").trim();
 
-      // NGフィードバックがある行のみ返す
+      // NG行: ×が付いているか、何らかのメモがある行
       const hasNg = cl1Result === "×" || cl2Result === "×";
       const hasNote = [cl1Note, cl2Note, memo, ngReason, aallNote].join("").length > 3;
-      if (!hasNg && !hasNote) return null;
+      // OK行: 2次CLが○(最終承認)で、テキストか備考がある行
+      const isOk = cl2Result === "○" && ((row[CR_COL.AD_TEXT] ?? "").trim().length > 0 || hasNote);
+
+      if (!hasNg && !hasNote && !isOk) return null;
 
       return {
         rowNum: fromRow + idx,
@@ -259,6 +264,7 @@ export async function fetchCrSheetFeedback(
         memo,
         ngReason,
         aallNote,
+        isOk,
       };
     })
     .filter((r): r is CrFeedbackRow => r !== null);
