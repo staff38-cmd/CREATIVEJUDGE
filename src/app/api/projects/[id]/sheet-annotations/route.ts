@@ -37,9 +37,24 @@ export interface AnnotationRow {
 }
 
 export interface AnnotationGroup {
-  content: string;
+  key: string;       // グループ表示テキスト（全角スペース後の指示部分）
+  variants: string[]; // 実際のバリエーション（前置きが異なるものをまとめる）
   count: number;
-  examples: { rowNum: number; sheetName: string; adText: string }[];
+  examples: { rowNum: number; sheetName: string; adText: string; content: string }[];
+}
+
+// 全角スペース（　）の後ろの「指示部分」を抽出してグループキーとする
+// 例: "異常肥満　遷移先に注釈要" → "遷移先に注釈要"
+// 例: "遷移先に注釈要" → "遷移先に注釈要"（そのまま）
+function extractGroupKey(content: string): string {
+  const idx = content.indexOf("\u3000"); // 全角スペース
+  if (idx > 0 && idx < content.length - 1) {
+    return content.slice(idx + 1).trim();
+  }
+  // 半角スペース2つ以上で区切られた場合
+  const m = content.match(/^.+?\s{2,}(.+)$/);
+  if (m) return m[1].trim();
+  return content;
 }
 
 export async function GET(
@@ -165,17 +180,21 @@ export async function GET(
       }
     }
 
-    // 同じ content でグループ化
+    // グループキー（指示部分）でグループ化
     const groupMap = new Map<string, AnnotationGroup>();
     for (const r of results) {
-      const key = r.content;
+      const key = extractGroupKey(r.content);
       if (!groupMap.has(key)) {
-        groupMap.set(key, { content: r.content, count: 0, examples: [] });
+        groupMap.set(key, { key, variants: [], count: 0, examples: [] });
       }
       const g = groupMap.get(key)!;
       g.count++;
+      // バリエーション（異なる表記）を収集（最大5種）
+      if (!g.variants.includes(r.content) && g.variants.length < 5) {
+        g.variants.push(r.content);
+      }
       if (g.examples.length < 3) {
-        g.examples.push({ rowNum: r.rowNum, sheetName: r.sheetName, adText: r.adText });
+        g.examples.push({ rowNum: r.rowNum, sheetName: r.sheetName, adText: r.adText, content: r.content });
       }
     }
     const grouped = Array.from(groupMap.values()).sort((a, b) => b.count - a.count);

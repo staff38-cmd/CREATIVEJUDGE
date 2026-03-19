@@ -84,9 +84,10 @@ const CATEGORY_ORDER: RegulationCategory[] = [
 ];
 
 interface AnnotationGroup {
-  content: string;
+  key: string;
+  variants: string[];
   count: number;
-  examples: { rowNum: number; sheetName: string; adText: string }[];
+  examples: { rowNum: number; sheetName: string; adText: string; content: string }[];
 }
 
 export default function RegulationsPortalPage() {
@@ -471,7 +472,19 @@ export default function RegulationsPortalPage() {
                         {group.count}回
                       </span>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-white mb-1">{group.content}</div>
+                        <div className="text-sm text-white mb-1">{group.key}</div>
+                        {group.variants.length > 1 && (
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            {group.variants.map((v, i) => (
+                              <span key={i} className="text-xs bg-gray-700/50 text-gray-400 px-1.5 py-0.5 rounded">
+                                {v}
+                              </span>
+                            ))}
+                            {group.count > group.variants.length && (
+                              <span className="text-xs text-gray-600">他バリエーションあり</span>
+                            )}
+                          </div>
+                        )}
                         <div className="text-xs text-gray-500">
                           {group.examples.map((ex, i) => (
                             <span key={i} className="mr-3">
