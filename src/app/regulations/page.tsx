@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { v4 as uuidv4 } from "uuid";
 import { NgCase, AllowedCase, RegulationCategory } from "@/lib/types";
 
 interface ProjectSummary {
@@ -72,6 +73,21 @@ const CATEGORY_CONFIG: Record<
   },
 };
 
+const CATEGORY_COLOR: Record<RegulationCategory, string> = {
+  企業レギュレーション: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  媒体ガイドライン:   "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  過去NG事例:         "bg-red-500/20 text-red-300 border-red-500/30",
+  薬機法:             "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  景品表示法:         "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  "注釈・表記ルール": "bg-teal-500/20 text-teal-300 border-teal-500/30",
+  カスタム:           "bg-gray-500/20 text-gray-300 border-gray-500/30",
+};
+
+const NG_CATEGORIES: RegulationCategory[] = [
+  "企業レギュレーション", "媒体ガイドライン", "過去NG事例",
+  "薬機法", "景品表示法", "注釈・表記ルール", "カスタム",
+];
+
 type SortKey = "category" | "addedAt" | "title";
 type TabKey = "ng" | "ok";
 
@@ -107,6 +123,23 @@ export default function RegulationsPortalPage() {
   const [annotations, setAnnotations] = useState<AnnotationGroup[]>([]);
   const [annotationLoading, setAnnotationLoading] = useState(false);
   const [annotationError, setAnnotationError] = useState("");
+
+  // NG追加フォーム
+  const [showNgForm, setShowNgForm] = useState(false);
+  const [ngProjectId, setNgProjectId] = useState("");
+  const [ngTitle, setNgTitle] = useState("");
+  const [ngDescription, setNgDescription] = useState("");
+  const [ngCategory, setNgCategory] = useState<RegulationCategory | "">("");
+  const [ngQuote, setNgQuote] = useState("");
+  const [addingNg, setAddingNg] = useState(false);
+
+  // OK追加フォーム
+  const [showOkForm, setShowOkForm] = useState(false);
+  const [okProjectId, setOkProjectId] = useState("");
+  const [okTitle, setOkTitle] = useState("");
+  const [okDescription, setOkDescription] = useState("");
+  const [okQuote, setOkQuote] = useState("");
+  const [addingOk, setAddingOk] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -175,6 +208,57 @@ export default function RegulationsPortalPage() {
     } finally {
       setSyncingId(null);
     }
+  };
+
+  const addNgCase = async () => {
+    if (!ngProjectId || !ngTitle.trim() || !ngDescription.trim()) return;
+    setAddingNg(true);
+    const project = projects.find((p) => p.id === ngProjectId);
+    if (!project) { setAddingNg(false); return; }
+    const newCase: NgCase = {
+      id: uuidv4(),
+      title: ngTitle.trim(),
+      description: ngDescription.trim(),
+      category: (ngCategory || undefined) as RegulationCategory | undefined,
+      quote: ngQuote.trim() || undefined,
+      addedAt: new Date().toISOString(),
+    };
+    const res = await fetch(`/api/projects/${ngProjectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ngCases: [...(project.ngCases ?? []), newCase] }),
+    });
+    if (res.ok) {
+      setNgTitle(""); setNgDescription(""); setNgCategory(""); setNgQuote("");
+      setShowNgForm(false);
+      loadData();
+    }
+    setAddingNg(false);
+  };
+
+  const addAllowedCase = async () => {
+    if (!okProjectId || !okTitle.trim() || !okDescription.trim()) return;
+    setAddingOk(true);
+    const project = projects.find((p) => p.id === okProjectId);
+    if (!project) { setAddingOk(false); return; }
+    const newCase: AllowedCase = {
+      id: uuidv4(),
+      title: okTitle.trim(),
+      description: okDescription.trim(),
+      quote: okQuote.trim() || undefined,
+      addedAt: new Date().toISOString(),
+    };
+    const res = await fetch(`/api/projects/${okProjectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ allowedCases: [...(project.allowedCases ?? []), newCase] }),
+    });
+    if (res.ok) {
+      setOkTitle(""); setOkDescription(""); setOkQuote("");
+      setShowOkForm(false);
+      loadData();
+    }
+    setAddingOk(false);
   };
 
   const deleteNgCase = async (projectId: string, caseId: string) => {
@@ -599,6 +683,82 @@ export default function RegulationsPortalPage() {
           </div>
         )}
 
+        {/* NG追加フォーム */}
+        {activeTab === "ng" && (
+          <div>
+            {!showNgForm ? (
+              <button
+                onClick={() => setShowNgForm(true)}
+                className="w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-red-500/40 hover:bg-red-500/5 text-gray-400 hover:text-red-300 transition-all"
+              >
+                ＋ NG事例を手動追加
+              </button>
+            ) : (
+              <div className="p-5 rounded-xl border border-red-500/20 bg-red-500/5 space-y-3">
+                <p className="text-sm font-bold text-red-300">新しいNG事例を追加</p>
+                <select
+                  value={ngProjectId}
+                  onChange={(e) => setNgProjectId(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none text-sm"
+                  style={{ colorScheme: "dark" }}
+                >
+                  <option value="">追加先の案件を選択 *</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.clientName ? `${p.clientName} / ` : ""}{p.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text" value={ngTitle} onChange={(e) => setNgTitle(e.target.value)}
+                  placeholder="事例タイトル（例：効能効果の断言表現） *"
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none text-sm transition-colors"
+                />
+                <textarea
+                  value={ngDescription} onChange={(e) => setNgDescription(e.target.value)}
+                  placeholder="詳細・なぜNGか *" rows={3}
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none text-sm transition-colors resize-none"
+                />
+                <input
+                  type="text" value={ngQuote} onChange={(e) => setNgQuote(e.target.value)}
+                  placeholder="問題のあった表現（任意）　例：「3日で痩せる」"
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-red-500 focus:outline-none text-sm font-mono transition-colors"
+                />
+                <div>
+                  <label className="block text-xs text-gray-500 mb-2">カテゴリ（任意）</label>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setNgCategory("")}
+                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${ngCategory === "" ? "bg-white/20 text-white border-white/40" : "border-white/10 text-gray-400 hover:border-white/30"}`}>
+                      未分類
+                    </button>
+                    {NG_CATEGORIES.map((cat) => (
+                      <button key={cat} type="button" onClick={() => setNgCategory(cat)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${ngCategory === cat ? CATEGORY_COLOR[cat] : "border-white/10 text-gray-400 hover:border-white/30"}`}>
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={addNgCase}
+                    disabled={!ngProjectId || !ngTitle.trim() || !ngDescription.trim() || addingNg}
+                    className="px-5 py-2 rounded-lg text-sm font-semibold bg-red-500/80 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {addingNg ? "追加中..." : "NG事例を追加"}
+                  </button>
+                  <button
+                    onClick={() => { setShowNgForm(false); setNgTitle(""); setNgDescription(""); setNgCategory(""); setNgQuote(""); setNgProjectId(""); }}
+                    className="px-5 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/5 transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* NG事例一覧 */}
         {activeTab === "ng" && (
           loading ? (
@@ -690,6 +850,68 @@ export default function RegulationsPortalPage() {
               })}
             </div>
           )
+        )}
+
+        {/* OK追加フォーム */}
+        {activeTab === "ok" && (
+          <div>
+            {!showOkForm ? (
+              <button
+                onClick={() => setShowOkForm(true)}
+                className="w-full py-3 rounded-xl text-sm font-medium border border-dashed border-white/20 hover:border-green-500/40 hover:bg-green-500/5 text-gray-400 hover:text-green-300 transition-all"
+              >
+                ＋ OK事例を手動追加
+              </button>
+            ) : (
+              <div className="p-5 rounded-xl border border-green-500/20 bg-green-500/5 space-y-3">
+                <p className="text-sm font-bold text-green-300">OK事例を追加</p>
+                <select
+                  value={okProjectId}
+                  onChange={(e) => setOkProjectId(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none text-sm"
+                  style={{ colorScheme: "dark" }}
+                >
+                  <option value="">追加先の案件を選択 *</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.clientName ? `${p.clientName} / ` : ""}{p.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text" value={okTitle} onChange={(e) => setOkTitle(e.target.value)}
+                  placeholder="タイトル（例：「うるおい」訴求はOK） *"
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none text-sm transition-colors"
+                />
+                <textarea
+                  value={okDescription} onChange={(e) => setOkDescription(e.target.value)}
+                  placeholder="なぜOKか・使用条件（例：保湿効果の訴求は化粧品の効能範囲内であり使用可。ただし「治る」等の医薬品的表現は不可） *"
+                  rows={3}
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none text-sm transition-colors resize-none"
+                />
+                <input
+                  type="text" value={okQuote} onChange={(e) => setOkQuote(e.target.value)}
+                  placeholder="具体的な表現（任意）　例：「肌にうるおいを与える」"
+                  className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 focus:border-green-500 focus:outline-none text-sm font-mono transition-colors"
+                />
+                <div className="flex gap-2 pt-1">
+                  <button
+                    onClick={addAllowedCase}
+                    disabled={!okProjectId || !okTitle.trim() || !okDescription.trim() || addingOk}
+                    className="px-5 py-2 rounded-lg text-sm font-semibold bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {addingOk ? "追加中..." : "OK事例を追加"}
+                  </button>
+                  <button
+                    onClick={() => { setShowOkForm(false); setOkTitle(""); setOkDescription(""); setOkQuote(""); setOkProjectId(""); }}
+                    className="px-5 py-2 rounded-lg text-sm border border-white/20 hover:bg-white/5 transition-colors"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* OK事例一覧 */}
